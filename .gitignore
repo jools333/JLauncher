@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+.cargo/config.toml
+*.exe
+*.dll
+jlauncher.exe
