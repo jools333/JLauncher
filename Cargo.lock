@@ -1991,7 +1991,7 @@ dependencies = [
 
 [[package]]
 name = "jlauncher"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "arboard",
  "auto-launch",
@@ -2004,6 +2004,7 @@ dependencies = [
  "global-hotkey",
  "image",
  "log",
+ "native-tls",
  "open",
  "semver",
  "serde",

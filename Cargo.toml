@@ -1,6 +1,6 @@
 [package]
 name = "jlauncher"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["JLauncher Contributors"]
 description = "Fast, lightweight keyboard launcher for Linux (X11 & Wayland) and Windows"
@@ -21,6 +21,7 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 log = "0.4"
 env_logger = "0.11"
 ureq = { version = "2.10", default-features = false, features = ["native-tls", "json"] }
+native-tls = "0.2"
 semver = "1.0"
 
 [target.'cfg(not(windows))'.dependencies]

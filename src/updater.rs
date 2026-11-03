@@ -165,13 +165,24 @@ impl UpdaterService {
     }
 }
 
+fn create_http_agent() -> Result<ureq::Agent, String> {
+    let tls_connector = native_tls::TlsConnector::new()
+        .map_err(|e| format!("Failed to initialize TLS connector: {}", e))?;
+    Ok(ureq::builder()
+        .tls_connector(Arc::new(tls_connector))
+        .timeout(std::time::Duration::from_secs(30))
+        .build())
+}
+
 fn check_latest_release() -> Result<Option<UpdateInfo>, String> {
     let url = format!(
         "https://api.github.com/repos/{}/releases/latest",
         GITHUB_REPO
     );
 
-    let resp = ureq::get(&url)
+    let agent = create_http_agent()?;
+    let resp = agent
+        .get(&url)
         .set("User-Agent", &format!("JLauncher/{}", CURRENT_VERSION))
         .set("Accept", "application/vnd.github.v3+json")
         .call()
@@ -260,7 +271,9 @@ where
         info.download_url, temp_new_file
     );
 
-    let resp = ureq::get(&info.download_url)
+    let agent = create_http_agent()?;
+    let resp = agent
+        .get(&info.download_url)
         .set("User-Agent", &format!("JLauncher/{}", CURRENT_VERSION))
         .call()
         .map_err(|e| format!("Download request error: {}", e))?;
@@ -345,5 +358,16 @@ pub fn cleanup_old_executables() {
         if old_exe.exists() {
             let _ = std::fs::remove_file(old_exe);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_http_agent() {
+        let agent = create_http_agent();
+        assert!(agent.is_ok());
     }
 }
