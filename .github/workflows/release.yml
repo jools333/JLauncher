@@ -1,0 +1,133 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '[0-9]*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create or Update Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+          name: "JLauncher ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}"
+          body: 'Automated release of JLauncher for Windows and Linux.'
+          draft: false
+          prerelease: false
+
+  release-build:
+    name: Build & Publish (${{ matrix.platform }})
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'linux-x86_64'
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            binary: jlauncher
+          - platform: 'windows-x86_64'
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: jlauncher.exe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libx11-dev \
+            libxext-dev \
+            libxft-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxrender-dev \
+            libxfixes-dev \
+            libxrandr-dev \
+            libxi-dev \
+            libxcb1-dev \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build Release Binary
+        run: cargo build --release --target ${{ matrix.target }} --verbose
+
+      - name: Package Release Assets (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          TAG_NAME="${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}"
+          ARCHIVE_NAME="jlauncher-${TAG_NAME}-linux-x86_64.tar.gz"
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" ./jlauncher
+          tar -czvf "$ARCHIVE_NAME" jlauncher README.md
+          echo "ASSET_ARCHIVE=$ARCHIVE_NAME" >> $GITHUB_ENV
+
+      - name: Package Release Assets (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tag = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}' } else { '${{ inputs.tag }}' }
+          $archiveName = "jlauncher-$tag-windows-x86_64.zip"
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.binary }}" -Destination ".\jlauncher.exe"
+          Compress-Archive -Path ".\jlauncher.exe", "README.md" -DestinationPath $archiveName
+          Add-Content -Path $env:GITHUB_ENV -Value "ASSET_ARCHIVE=$archiveName"
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+          files: |
+            ${{ env.ASSET_ARCHIVE }}
+            target/${{ matrix.target }}/release/${{ matrix.binary }}
