@@ -16,14 +16,22 @@ pub fn scan_windows_apps() -> Vec<AppEntry> {
     let mut search_dirs = Vec::new();
 
     if let Ok(progdata) = env::var("ProgramData") {
-        let p = PathBuf::from(progdata).join("Microsoft").join("Windows").join("Start Menu").join("Programs");
+        let p = PathBuf::from(progdata)
+            .join("Microsoft")
+            .join("Windows")
+            .join("Start Menu")
+            .join("Programs");
         if p.exists() {
             search_dirs.push(p);
         }
     }
 
     if let Ok(appdata) = env::var("APPDATA") {
-        let p = PathBuf::from(appdata).join("Microsoft").join("Windows").join("Start Menu").join("Programs");
+        let p = PathBuf::from(appdata)
+            .join("Microsoft")
+            .join("Windows")
+            .join("Start Menu")
+            .join("Programs");
         if p.exists() {
             search_dirs.push(p);
         }
@@ -52,7 +60,12 @@ fn builtin_windows_apps() -> Vec<AppEntry> {
             description: "Text Editor".into(),
             exec: "notepad.exe".into(),
             icon: Some("📝".into()),
-            keywords: vec!["notepad".into(), "блокнот".into(), "текст".into(), "editor".into()],
+            keywords: vec![
+                "notepad".into(),
+                "блокнот".into(),
+                "текст".into(),
+                "editor".into(),
+            ],
         },
         AppEntry {
             id: "cmd".into(),
@@ -60,7 +73,12 @@ fn builtin_windows_apps() -> Vec<AppEntry> {
             description: "Windows Command Processor".into(),
             exec: "cmd.exe".into(),
             icon: Some("💻".into()),
-            keywords: vec!["cmd".into(), "терминал".into(), "командная строка".into(), "terminal".into()],
+            keywords: vec![
+                "cmd".into(),
+                "терминал".into(),
+                "командная строка".into(),
+                "terminal".into(),
+            ],
         },
         AppEntry {
             id: "powershell".into(),
@@ -76,7 +94,12 @@ fn builtin_windows_apps() -> Vec<AppEntry> {
             description: "View and manage running processes".into(),
             exec: "taskmgr.exe".into(),
             icon: Some("📊".into()),
-            keywords: vec!["taskmgr".into(), "диспетчер".into(), "процессы".into(), "tasks".into()],
+            keywords: vec![
+                "taskmgr".into(),
+                "диспетчер".into(),
+                "процессы".into(),
+                "tasks".into(),
+            ],
         },
         AppEntry {
             id: "explorer".into(),
@@ -84,7 +107,12 @@ fn builtin_windows_apps() -> Vec<AppEntry> {
             description: "Browse files and folders".into(),
             exec: "explorer.exe".into(),
             icon: Some("📁".into()),
-            keywords: vec!["explorer".into(), "проводник".into(), "файлы".into(), "папки".into()],
+            keywords: vec![
+                "explorer".into(),
+                "проводник".into(),
+                "файлы".into(),
+                "папки".into(),
+            ],
         },
         AppEntry {
             id: "settings".into(),
@@ -92,7 +120,12 @@ fn builtin_windows_apps() -> Vec<AppEntry> {
             description: "Windows Settings".into(),
             exec: "ms-settings:".into(),
             icon: Some("⚙".into()),
-            keywords: vec!["settings".into(), "параметры".into(), "настройки".into(), "конфиг".into()],
+            keywords: vec![
+                "settings".into(),
+                "параметры".into(),
+                "настройки".into(),
+                "конфиг".into(),
+            ],
         },
         AppEntry {
             id: "control".into(),
@@ -100,7 +133,11 @@ fn builtin_windows_apps() -> Vec<AppEntry> {
             description: "Windows Control Panel".into(),
             exec: "control.exe".into(),
             icon: Some("🛠".into()),
-            keywords: vec!["control".into(), "панель управления".into(), "control panel".into()],
+            keywords: vec![
+                "control".into(),
+                "панель управления".into(),
+                "control panel".into(),
+            ],
         },
     ]
 }

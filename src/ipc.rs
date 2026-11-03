@@ -42,14 +42,15 @@ impl IpcCommand {
 
 pub fn send_command(cmd: IpcCommand) -> Result<(), String> {
     let addr = format!("127.0.0.1:{}", IPC_PORT);
-    let mut stream = TcpStream::connect_timeout(
-        &addr.parse().unwrap(),
-        Duration::from_millis(1000),
-    ).map_err(|e| format!("Could not connect to running instance: {}", e))?;
+    let mut stream =
+        TcpStream::connect_timeout(&addr.parse().unwrap(), Duration::from_millis(1000))
+            .map_err(|e| format!("Could not connect to running instance: {}", e))?;
 
     let _ = stream.set_write_timeout(Some(Duration::from_millis(1000)));
     let msg = format!("{}\n", cmd.as_str());
-    stream.write_all(msg.as_bytes()).map_err(|e| e.to_string())?;
+    stream
+        .write_all(msg.as_bytes())
+        .map_err(|e| e.to_string())?;
     stream.flush().map_err(|e| e.to_string())?;
     let _ = stream.shutdown(std::net::Shutdown::Both);
     Ok(())
@@ -57,9 +58,8 @@ pub fn send_command(cmd: IpcCommand) -> Result<(), String> {
 
 pub fn start_server(_sender: Sender<IpcCommand>, ctx: Option<egui::Context>) -> Result<(), String> {
     let addr = format!("127.0.0.1:{}", IPC_PORT);
-    let listener = TcpListener::bind(&addr).map_err(|e| {
-        format!("Failed to bind IPC port {}: {}", IPC_PORT, e)
-    })?;
+    let listener = TcpListener::bind(&addr)
+        .map_err(|e| format!("Failed to bind IPC port {}: {}", IPC_PORT, e))?;
 
     thread::spawn(move || {
         info!("IPC server listening on 127.0.0.1:{}", IPC_PORT);

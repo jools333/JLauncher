@@ -160,7 +160,10 @@ pub fn sync_gnome_hotkey(hotkey_str: &str) {
             "tab" => key = "Tab".to_string(),
             "esc" | "escape" => key = "Escape".to_string(),
             other => {
-                if other.starts_with('f') && other.len() > 1 && other[1..].chars().all(|c| c.is_ascii_digit()) {
+                if other.starts_with('f')
+                    && other.len() > 1
+                    && other[1..].chars().all(|c| c.is_ascii_digit())
+                {
                     key = other.to_uppercase();
                 } else if other.len() == 1 {
                     key = other.to_lowercase();
@@ -178,12 +181,20 @@ pub fn sync_gnome_hotkey(hotkey_str: &str) {
     // If binding is <Alt>space, ensure GNOME's activate-window-menu does not intercept it
     if binding == "<Alt>space" {
         let _ = std::process::Command::new("gsettings")
-            .args(["set", "org.gnome.desktop.wm.keybindings", "activate-window-menu", "[]"])
+            .args([
+                "set",
+                "org.gnome.desktop.wm.keybindings",
+                "activate-window-menu",
+                "[]",
+            ])
             .status();
     }
 
     let path = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/jlauncher/";
-    let schema = format!("org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{}", path);
+    let schema = format!(
+        "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{}",
+        path
+    );
 
     let _ = std::process::Command::new("gsettings")
         .args(["set", &schema, "name", "JLauncher"])
@@ -196,14 +207,23 @@ pub fn sync_gnome_hotkey(hotkey_str: &str) {
         .status();
 
     if let Ok(output) = std::process::Command::new("gsettings")
-        .args(["get", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings"])
+        .args([
+            "get",
+            "org.gnome.settings-daemon.plugins.media-keys",
+            "custom-keybindings",
+        ])
         .output()
     {
         let current = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if !current.contains(path) && current.contains('[') {
             let new_list = current.replace(']', &format!(", '{}']", path));
             let _ = std::process::Command::new("gsettings")
-                .args(["set", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings", &new_list])
+                .args([
+                    "set",
+                    "org.gnome.settings-daemon.plugins.media-keys",
+                    "custom-keybindings",
+                    &new_list,
+                ])
                 .status();
         }
     }

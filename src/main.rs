@@ -51,7 +51,11 @@ fn init_logger() {
         let _ = std::fs::create_dir_all(dir);
         let log_file = dir.join("jlauncher.log");
         if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(log_file) {
-            let _ = writeln!(file, "--- JLauncher starting at {:?} ---", std::time::SystemTime::now());
+            let _ = writeln!(
+                file,
+                "--- JLauncher starting at {:?} ---",
+                std::time::SystemTime::now()
+            );
         }
     }
 
@@ -69,7 +73,13 @@ fn init_logger() {
         .format(|buf, record| {
             use std::io::Write;
             let ts = buf.timestamp();
-            let line = format!("[{} {} {}] {}", ts, record.level(), record.target(), record.args());
+            let line = format!(
+                "[{} {} {}] {}",
+                ts,
+                record.level(),
+                record.target(),
+                record.args()
+            );
             if let Some(proj) = directories::ProjectDirs::from("org", "jlauncher", "jlauncher") {
                 let log_file = proj.data_local_dir().join("jlauncher.log");
                 if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(log_file) {
@@ -105,7 +115,10 @@ fn ensure_interactive_desktop() {
         );
 
         let desk_name = if ok != 0 {
-            let nul_idx = name_buf.iter().position(|&c| c == 0).unwrap_or(name_buf.len());
+            let nul_idx = name_buf
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(name_buf.len());
             String::from_utf16_lossy(&name_buf[..nul_idx])
         } else {
             String::new()
@@ -198,12 +211,21 @@ fn ensure_interactive_desktop() {
                     windows_sys::Win32::System::Threading::INFINITE,
                 );
                 let mut exit_code: u32 = 0;
-                windows_sys::Win32::System::Threading::GetExitCodeProcess(pi.hProcess, &mut exit_code);
-                info!("Child process (PID {}) finished with exit code {}.", pi.dwProcessId, exit_code);
+                windows_sys::Win32::System::Threading::GetExitCodeProcess(
+                    pi.hProcess,
+                    &mut exit_code,
+                );
+                info!(
+                    "Child process (PID {}) finished with exit code {}.",
+                    pi.dwProcessId, exit_code
+                );
                 windows_sys::Win32::Foundation::CloseHandle(pi.hProcess);
                 std::process::exit(exit_code as i32);
             } else {
-                log::warn!("Failed to spawn on WinSta0\\Default: error {}", std::io::Error::last_os_error());
+                log::warn!(
+                    "Failed to spawn on WinSta0\\Default: error {}",
+                    std::io::Error::last_os_error()
+                );
             }
         }
     }
@@ -217,7 +239,9 @@ fn main() -> eframe::Result<()> {
         // This is essential because Wayland xdg-shell does not support hiding windows
         // (set_visible is a no-op on Wayland in winit), does not support global hotkeys,
         // and causes frame callback hangs when unmapped.
-        if std::env::var("JLAUNCHER_BACKEND").map(|v| v != "wayland").unwrap_or(true)
+        if std::env::var("JLAUNCHER_BACKEND")
+            .map(|v| v != "wayland")
+            .unwrap_or(true)
             && std::env::var("DISPLAY").is_ok()
         {
             std::env::remove_var("WAYLAND_DISPLAY");

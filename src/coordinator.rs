@@ -183,8 +183,8 @@ pub fn show_window(with_settings: bool) {
                 use windows_sys::Win32::System::Threading::GetCurrentProcessId;
                 use windows_sys::Win32::UI::WindowsAndMessaging::{
                     AllowSetForegroundWindow, BringWindowToTop, GetSystemMetrics,
-                    SetForegroundWindow, SetWindowPos, ShowWindow, HWND_TOPMOST,
-                    SM_CXSCREEN, SM_CYSCREEN, SWP_SHOWWINDOW, SW_RESTORE, SW_SHOW,
+                    SetForegroundWindow, SetWindowPos, ShowWindow, HWND_TOPMOST, SM_CXSCREEN,
+                    SM_CYSCREEN, SWP_SHOWWINDOW, SW_RESTORE, SW_SHOW,
                 };
                 let h = hwnd as windows_sys::Win32::Foundation::HWND;
                 AllowSetForegroundWindow(GetCurrentProcessId());

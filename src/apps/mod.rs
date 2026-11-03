@@ -52,9 +52,9 @@ impl AppIndex {
         // Deduplicate apps by name or exec
         let mut unique: Vec<AppEntry> = Vec::new();
         for app in loaded {
-            let exists = unique.iter().any(|u| {
-                u.name.eq_ignore_ascii_case(&app.name)
-            });
+            let exists = unique
+                .iter()
+                .any(|u| u.name.eq_ignore_ascii_case(&app.name));
             if !exists {
                 unique.push(app);
             }
@@ -86,12 +86,14 @@ impl AppIndex {
 
             // Also check keywords / exec / description if name didn't match well
             if let Some(desc_score) = self.matcher.fuzzy_match(&app.description, trimmed) {
-                highest_score = Some(highest_score.map_or(desc_score / 2, |s| s.max(desc_score / 2)));
+                highest_score =
+                    Some(highest_score.map_or(desc_score / 2, |s| s.max(desc_score / 2)));
             }
 
             for kw in &app.keywords {
                 if let Some(kw_score) = self.matcher.fuzzy_match(kw, trimmed) {
-                    highest_score = Some(highest_score.map_or(kw_score / 2, |s| s.max(kw_score / 2)));
+                    highest_score =
+                        Some(highest_score.map_or(kw_score / 2, |s| s.max(kw_score / 2)));
                 }
             }
 

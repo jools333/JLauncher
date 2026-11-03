@@ -94,7 +94,11 @@ unsafe fn handle_tray_event(hwnd: windows_sys::Win32::Foundation::HWND, event: u
     const IDM_RESCAN: usize = 3;
     const IDM_QUIT: usize = 4;
 
-    if event == WM_LBUTTONUP || event == WM_LBUTTONDBLCLK || event == NIN_SELECT || event == NIN_KEYSELECT {
+    if event == WM_LBUTTONUP
+        || event == WM_LBUTTONDBLCLK
+        || event == NIN_SELECT
+        || event == NIN_KEYSELECT
+    {
         log::info!("Native tray: Left click / select -> Show launcher");
         crate::coordinator::show_window(false);
     } else if event == WM_RBUTTONUP {
@@ -104,9 +108,13 @@ unsafe fn handle_tray_event(hwnd: windows_sys::Win32::Foundation::HWND, event: u
             return;
         }
 
-        let open_text: Vec<u16> = "Open Launcher / Показать лаунчер\0".encode_utf16().collect();
+        let open_text: Vec<u16> = "Open Launcher / Показать лаунчер\0"
+            .encode_utf16()
+            .collect();
         let settings_text: Vec<u16> = "Settings / Настройки...\0".encode_utf16().collect();
-        let rescan_text: Vec<u16> = "Rescan Apps / Обновить программы\0".encode_utf16().collect();
+        let rescan_text: Vec<u16> = "Rescan Apps / Обновить программы\0"
+            .encode_utf16()
+            .collect();
         let quit_text: Vec<u16> = "Quit / Выход\0".encode_utf16().collect();
 
         AppendMenuW(hmenu, MF_STRING, IDM_OPEN, open_text.as_ptr());
@@ -132,7 +140,11 @@ unsafe fn handle_tray_event(hwnd: windows_sys::Win32::Foundation::HWND, event: u
         DestroyMenu(hmenu);
 
         let err = windows_sys::Win32::Foundation::GetLastError();
-        log::info!("TrackPopupMenu selected cmd: {}, GetLastError: {}", cmd, err);
+        log::info!(
+            "TrackPopupMenu selected cmd: {}, GetLastError: {}",
+            cmd,
+            err
+        );
         match cmd as usize {
             IDM_OPEN => {
                 crate::coordinator::show_window(false);
@@ -144,7 +156,9 @@ unsafe fn handle_tray_event(hwnd: windows_sys::Win32::Foundation::HWND, event: u
                 crate::coordinator::trigger_rescan();
             }
             IDM_QUIT => {
-                use windows_sys::Win32::UI::Shell::{Shell_NotifyIconW, NIM_DELETE, NOTIFYICONDATAW};
+                use windows_sys::Win32::UI::Shell::{
+                    Shell_NotifyIconW, NIM_DELETE, NOTIFYICONDATAW,
+                };
                 let mut nid = NOTIFYICONDATAW {
                     cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
                     hWnd: hwnd,
@@ -229,13 +243,11 @@ fn run_windows_tray(_tx: Sender<TrayMessage>, running: Arc<AtomicBool>, _ctx: eg
         );
         ShowWindow(hwnd, SW_SHOW);
 
-        let hook = SetWindowsHookExW(
-            WH_KEYBOARD_LL,
-            Some(low_level_keyboard_proc),
-            hinstance,
-            0,
+        let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(low_level_keyboard_proc), hinstance, 0);
+        log::info!(
+            "Low-level keyboard hook (WH_KEYBOARD_LL) installed: {:?}",
+            hook
         );
-        log::info!("Low-level keyboard hook (WH_KEYBOARD_LL) installed: {:?}", hook);
 
         let hicon = create_native_hicon();
 
@@ -305,7 +317,8 @@ unsafe fn create_native_hicon() -> windows_sys::Win32::UI::WindowsAndMessaging::
             if dist <= 14.5 {
                 let is_center_dot = dist <= 4.0;
                 let is_ring = dist >= 7.0 && dist <= 10.0;
-                let is_handle = x >= 18 && y >= 18 && (x as i32 - y as i32).abs() <= 2 && dist <= 13.0;
+                let is_handle =
+                    x >= 18 && y >= 18 && (x as i32 - y as i32).abs() <= 2 && dist <= 13.0;
 
                 if is_center_dot || is_handle {
                     // Crisp pure white (BGRA for Win32 DIB: B, G, R, A)
@@ -385,7 +398,9 @@ fn run_unix_tray(tx: Sender<TrayMessage>, running: Arc<AtomicBool>, ctx: egui::C
             let dy = (y as f32) - 15.5;
             let dist = (dx * dx + dy * dy).sqrt();
             if dist <= 14.5 {
-                if dist <= 4.0 || (x >= 18 && y >= 18 && (x as i32 - y as i32).abs() <= 2 && dist <= 13.0) {
+                if dist <= 4.0
+                    || (x >= 18 && y >= 18 && (x as i32 - y as i32).abs() <= 2 && dist <= 13.0)
+                {
                     rgba.extend_from_slice(&[255, 255, 255, 255]);
                 } else if dist >= 7.0 && dist <= 10.0 {
                     rgba.extend_from_slice(&[56, 189, 248, 255]);

@@ -15,28 +15,56 @@ pub const SYSTEM_ACTIONS: &[SystemAction] = &[
         title: "Shutdown / Выключение",
         description: "Power off the computer",
         icon: "⏻",
-        keywords: &["shutdown", "poweroff", "power off", "turn off", "выключить", "выключение", "питание", "off"],
+        keywords: &[
+            "shutdown",
+            "poweroff",
+            "power off",
+            "turn off",
+            "выключить",
+            "выключение",
+            "питание",
+            "off",
+        ],
     },
     SystemAction {
         id: "reboot",
         title: "Restart / Перезагрузка",
         description: "Restart the computer",
         icon: "↻",
-        keywords: &["reboot", "restart", "перезагрузка", "перезагрузить", "рестарт"],
+        keywords: &[
+            "reboot",
+            "restart",
+            "перезагрузка",
+            "перезагрузить",
+            "рестарт",
+        ],
     },
     SystemAction {
         id: "lock",
         title: "Lock Screen / Заблокировать экран",
         description: "Lock the current session",
         icon: "🔒",
-        keywords: &["lock", "lock screen", "заблокировать", "блокировка", "экран"],
+        keywords: &[
+            "lock",
+            "lock screen",
+            "заблокировать",
+            "блокировка",
+            "экран",
+        ],
     },
     SystemAction {
         id: "logout",
         title: "Log Out / Завершить сеанс",
         description: "Sign out of the current user session",
         icon: "🚪",
-        keywords: &["logout", "log out", "sign out", "выйти", "завершить сеанс", "сеанс"],
+        keywords: &[
+            "logout",
+            "log out",
+            "sign out",
+            "выйти",
+            "завершить сеанс",
+            "сеанс",
+        ],
     },
     SystemAction {
         id: "sleep",
@@ -118,9 +146,7 @@ pub fn execute_action(id: &str) -> Result<(), String> {
                 status.map_err(|e| e.to_string())?;
             }
             "sleep" => {
-                let status = Command::new("systemctl")
-                    .arg("suspend")
-                    .spawn();
+                let status = Command::new("systemctl").arg("suspend").spawn();
                 status.map_err(|e| e.to_string())?;
             }
             _ => return Err("Unknown action".to_string()),

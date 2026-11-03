@@ -31,10 +31,9 @@ fn setup_fonts(ctx: &egui::Context) {
 
         for (name, path, is_primary) in font_candidates {
             if let Ok(data) = std::fs::read(path) {
-                fonts.font_data.insert(
-                    name.to_owned(),
-                    egui::FontData::from_owned(data),
-                );
+                fonts
+                    .font_data
+                    .insert(name.to_owned(), egui::FontData::from_owned(data));
                 if is_primary {
                     fonts
                         .families
@@ -60,16 +59,24 @@ fn setup_fonts(ctx: &egui::Context) {
     #[cfg(not(target_os = "windows"))]
     {
         let unix_candidates = [
-            ("noto_sans", "/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf"),
-            ("dejavu_sans", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-            ("noto_symbols", "/usr/share/fonts/truetype/noto/NotoSansSymbols-Regular.ttf"),
+            (
+                "noto_sans",
+                "/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf",
+            ),
+            (
+                "dejavu_sans",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            ),
+            (
+                "noto_symbols",
+                "/usr/share/fonts/truetype/noto/NotoSansSymbols-Regular.ttf",
+            ),
         ];
         for (name, path) in unix_candidates {
             if let Ok(data) = std::fs::read(path) {
-                fonts.font_data.insert(
-                    name.to_owned(),
-                    egui::FontData::from_owned(data),
-                );
+                fonts
+                    .font_data
+                    .insert(name.to_owned(), egui::FontData::from_owned(data));
                 fonts
                     .families
                     .entry(egui::FontFamily::Proportional)
@@ -224,19 +231,19 @@ impl JLauncherApp {
         app
     }
 
-#[cfg(target_os = "windows")]
-fn find_and_register_main_hwnd() {
-    let hwnd = crate::coordinator::ensure_main_hwnd();
-    if hwnd != 0 {
-        crate::coordinator::apply_rounded_corners(hwnd);
+    #[cfg(target_os = "windows")]
+    fn find_and_register_main_hwnd() {
+        let hwnd = crate::coordinator::ensure_main_hwnd();
+        if hwnd != 0 {
+            crate::coordinator::apply_rounded_corners(hwnd);
+        }
     }
-}
 
-    pub fn hide_window(&mut self, ctx: &egui::Context) {
+    pub fn hide_window(&mut self, _ctx: &egui::Context) {
         info!("JLauncherApp::hide_window [START]");
         crate::coordinator::hide_window();
         #[cfg(not(target_os = "windows"))]
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        _ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         self.is_visible = false;
         self.last_revision = crate::coordinator::get_revision();
         self.was_focused = false;
@@ -244,13 +251,13 @@ fn find_and_register_main_hwnd() {
         info!("JLauncherApp::hide_window [DONE]");
     }
 
-    pub fn show_window(&mut self, ctx: &egui::Context) {
+    pub fn show_window(&mut self, _ctx: &egui::Context) {
         info!("JLauncherApp::show_window [START]");
         crate::coordinator::show_window(self.show_settings);
         #[cfg(not(target_os = "windows"))]
         {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            _ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+            _ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         }
         self.is_visible = true;
         self.last_revision = crate::coordinator::get_revision();
@@ -369,10 +376,17 @@ fn find_and_register_main_hwnd() {
         if self.calculator.evaluate(trimmed).is_some() {
             return true;
         }
-        if self.results.iter().any(|item| matches!(item, LauncherItem::Calculator(_))) {
+        if self
+            .results
+            .iter()
+            .any(|item| matches!(item, LauncherItem::Calculator(_)))
+        {
             return true;
         }
-        if (trimmed.ends_with('+') || trimmed.ends_with('-') || trimmed.ends_with('*') || trimmed.ends_with('/'))
+        if (trimmed.ends_with('+')
+            || trimmed.ends_with('-')
+            || trimmed.ends_with('*')
+            || trimmed.ends_with('/'))
             && trimmed.chars().any(|c| c.is_ascii_digit())
         {
             return true;
@@ -418,7 +432,12 @@ impl eframe::App for JLauncherApp {
         }
 
         let rev = crate::coordinator::get_revision();
-        log::trace!("App::update: frame start, rev={}, last_rev={}, is_visible={}", rev, self.last_revision, self.is_visible);
+        log::trace!(
+            "App::update: frame start, rev={}, last_rev={}, is_visible={}",
+            rev,
+            self.last_revision,
+            self.is_visible
+        );
         if rev != self.last_revision {
             self.last_revision = rev;
             let coord_visible = crate::coordinator::is_visible();
@@ -465,9 +484,9 @@ impl eframe::App for JLauncherApp {
         if is_focused {
             self.was_focused = true;
         } else if self.was_focused {
-            let grace_passed = self
-                .visible_since
-                .map_or(true, |t| t.elapsed() >= std::time::Duration::from_millis(200));
+            let grace_passed = self.visible_since.map_or(true, |t| {
+                t.elapsed() >= std::time::Duration::from_millis(200)
+            });
             if grace_passed {
                 info!("Launcher window lost focus -> hiding window");
                 self.hide_window(ctx);
@@ -476,15 +495,16 @@ impl eframe::App for JLauncherApp {
         }
 
         // Extract keyboard navigation inputs safely without holding ctx.input lock
-        let (escape_pressed, down_pressed, up_pressed, enter_pressed, alt_s_pressed) = ctx.input(|i| {
-            (
-                i.key_pressed(Key::Escape),
-                i.key_pressed(Key::ArrowDown),
-                i.key_pressed(Key::ArrowUp),
-                i.key_pressed(Key::Enter),
-                i.modifiers.alt && i.key_pressed(Key::S),
-            )
-        });
+        let (escape_pressed, down_pressed, up_pressed, enter_pressed, alt_s_pressed) =
+            ctx.input(|i| {
+                (
+                    i.key_pressed(Key::Escape),
+                    i.key_pressed(Key::ArrowDown),
+                    i.key_pressed(Key::ArrowUp),
+                    i.key_pressed(Key::Enter),
+                    i.modifiers.alt && i.key_pressed(Key::S),
+                )
+            });
 
         if escape_pressed {
             if self.show_settings {
@@ -684,65 +704,63 @@ impl JLauncherApp {
             .rounding(Rounding::same(8.0))
             .inner_margin(egui::Margin::symmetric(10.0, 6.0))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    match item {
-                        LauncherItem::Calculator(calc) => {
-                            ui.label(egui::RichText::new("🧮").size(18.0));
-                            ui.add_space(6.0);
-                            ui.vertical(|ui| {
-                                ui.label(
-                                    egui::RichText::new(&calc.formatted_result)
-                                        .color(Color32::from_rgb(52, 211, 153))
-                                        .strong()
-                                        .size(16.0),
-                                );
-                                ui.label(
-                                    egui::RichText::new(format!(
-                                        "Calculator: {} (Enter to copy)",
-                                        calc.expression
-                                    ))
+                ui.horizontal(|ui| match item {
+                    LauncherItem::Calculator(calc) => {
+                        ui.label(egui::RichText::new("🧮").size(18.0));
+                        ui.add_space(6.0);
+                        ui.vertical(|ui| {
+                            ui.label(
+                                egui::RichText::new(&calc.formatted_result)
+                                    .color(Color32::from_rgb(52, 211, 153))
+                                    .strong()
+                                    .size(16.0),
+                            );
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "Calculator: {} (Enter to copy)",
+                                    calc.expression
+                                ))
+                                .color(Color32::from_rgb(160, 168, 185))
+                                .size(12.0),
+                            );
+                        });
+                    }
+                    LauncherItem::System(action) => {
+                        ui.label(egui::RichText::new(action.icon).size(18.0));
+                        ui.add_space(6.0);
+                        ui.vertical(|ui| {
+                            ui.label(
+                                egui::RichText::new(action.title)
+                                    .color(Color32::from_rgb(248, 113, 113))
+                                    .strong()
+                                    .size(15.0),
+                            );
+                            ui.label(
+                                egui::RichText::new(action.description)
                                     .color(Color32::from_rgb(160, 168, 185))
                                     .size(12.0),
-                                );
-                            });
-                        }
-                        LauncherItem::System(action) => {
-                            ui.label(egui::RichText::new(action.icon).size(18.0));
-                            ui.add_space(6.0);
-                            ui.vertical(|ui| {
+                            );
+                        });
+                    }
+                    LauncherItem::App(app) => {
+                        let icon = app.icon.as_deref().unwrap_or("🚀");
+                        ui.label(egui::RichText::new(icon).size(18.0));
+                        ui.add_space(6.0);
+                        ui.vertical(|ui| {
+                            ui.label(
+                                egui::RichText::new(&app.name)
+                                    .color(Color32::WHITE)
+                                    .strong()
+                                    .size(15.0),
+                            );
+                            if !app.description.is_empty() {
                                 ui.label(
-                                    egui::RichText::new(action.title)
-                                        .color(Color32::from_rgb(248, 113, 113))
-                                        .strong()
-                                        .size(15.0),
-                                );
-                                ui.label(
-                                    egui::RichText::new(action.description)
-                                        .color(Color32::from_rgb(160, 168, 185))
+                                    egui::RichText::new(&app.description)
+                                        .color(Color32::from_rgb(150, 158, 175))
                                         .size(12.0),
                                 );
-                            });
-                        }
-                        LauncherItem::App(app) => {
-                            let icon = app.icon.as_deref().unwrap_or("🚀");
-                            ui.label(egui::RichText::new(icon).size(18.0));
-                            ui.add_space(6.0);
-                            ui.vertical(|ui| {
-                                ui.label(
-                                    egui::RichText::new(&app.name)
-                                        .color(Color32::WHITE)
-                                        .strong()
-                                        .size(15.0),
-                                );
-                                if !app.description.is_empty() {
-                                    ui.label(
-                                        egui::RichText::new(&app.description)
-                                            .color(Color32::from_rgb(150, 158, 175))
-                                            .size(12.0),
-                                    );
-                                }
-                            });
-                        }
+                            }
+                        });
                     }
                 });
             })
@@ -885,7 +903,10 @@ mod tests {
             if calc.evaluate(trimmed).is_some() {
                 return true;
             }
-            if (trimmed.ends_with('+') || trimmed.ends_with('-') || trimmed.ends_with('*') || trimmed.ends_with('/'))
+            if (trimmed.ends_with('+')
+                || trimmed.ends_with('-')
+                || trimmed.ends_with('*')
+                || trimmed.ends_with('/'))
                 && trimmed.chars().any(|c| c.is_ascii_digit())
             {
                 return true;
