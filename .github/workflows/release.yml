@@ -109,8 +109,10 @@ jobs:
           TAG_NAME="${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}"
           ARCHIVE_NAME="jlauncher-${TAG_NAME}-linux-x86_64.tar.gz"
           cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" ./jlauncher
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" ./jlauncher-linux-x86_64
           tar -czvf "$ARCHIVE_NAME" jlauncher README.md
           echo "ASSET_ARCHIVE=$ARCHIVE_NAME" >> $GITHUB_ENV
+          echo "ASSET_BIN=./jlauncher-linux-x86_64" >> $GITHUB_ENV
 
       - name: Package Release Assets (Windows)
         if: runner.os == 'Windows'
@@ -119,8 +121,10 @@ jobs:
           $tag = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}' } else { '${{ inputs.tag }}' }
           $archiveName = "jlauncher-$tag-windows-x86_64.zip"
           Copy-Item "target/${{ matrix.target }}/release/${{ matrix.binary }}" -Destination ".\jlauncher.exe"
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.binary }}" -Destination ".\jlauncher-windows-x86_64.exe"
           Compress-Archive -Path ".\jlauncher.exe", "README.md" -DestinationPath $archiveName
           Add-Content -Path $env:GITHUB_ENV -Value "ASSET_ARCHIVE=$archiveName"
+          Add-Content -Path $env:GITHUB_ENV -Value "ASSET_BIN=.\jlauncher-windows-x86_64.exe"
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
@@ -130,4 +134,4 @@ jobs:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
           files: |
             ${{ env.ASSET_ARCHIVE }}
-            target/${{ matrix.target }}/release/${{ matrix.binary }}
+            ${{ env.ASSET_BIN }}
