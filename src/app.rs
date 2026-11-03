@@ -116,12 +116,21 @@ fn is_window_focused(ctx: &egui::Context) -> bool {
     {
         let hwnd = crate::coordinator::get_main_hwnd();
         if hwnd != 0 {
-            use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+            use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                GetAncestor, GetForegroundWindow, GetWindowThreadProcessId, GA_ROOT,
+            };
             let fg = unsafe { GetForegroundWindow() };
-            if fg == (hwnd as windows_sys::Win32::Foundation::HWND) {
-                return true;
-            }
             if !fg.is_null() {
+                let h = hwnd as windows_sys::Win32::Foundation::HWND;
+                if fg == h || unsafe { GetAncestor(fg, GA_ROOT) } == h {
+                    return true;
+                }
+                let mut fg_pid = 0;
+                unsafe { GetWindowThreadProcessId(fg, &mut fg_pid) };
+                if fg_pid == unsafe { GetCurrentProcessId() } {
+                    return true;
+                }
                 return false;
             }
         }
@@ -235,6 +244,10 @@ impl JLauncherApp {
             },
         };
 
+        if !start_hidden {
+            cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
+
         app.update_search();
         app
     }
@@ -259,14 +272,12 @@ impl JLauncherApp {
         info!("JLauncherApp::hide_window [DONE]");
     }
 
-    pub fn show_window(&mut self, _ctx: &egui::Context) {
+    pub fn show_window(&mut self, ctx: &egui::Context) {
         info!("JLauncherApp::show_window [START]");
         crate::coordinator::show_window(self.show_settings);
         #[cfg(not(target_os = "windows"))]
-        {
-            _ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-            _ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         self.is_visible = true;
         self.last_revision = crate::coordinator::get_revision();
         self.was_focused = false;
@@ -458,9 +469,24 @@ impl eframe::App for JLauncherApp {
 
             if self.is_visible {
                 #[cfg(not(target_os = "windows"))]
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+
+                #[cfg(target_os = "windows")]
                 {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                    let hwnd = crate::coordinator::get_main_hwnd();
+                    if hwnd != 0 {
+                        unsafe {
+                            use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+                            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                                BringWindowToTop, SetForegroundWindow,
+                            };
+                            let h = hwnd as windows_sys::Win32::Foundation::HWND;
+                            BringWindowToTop(h);
+                            SetForegroundWindow(h);
+                            SetFocus(h);
+                        }
+                    }
                 }
 
                 if self.config.clear_on_hide && !self.is_calculator_query() {
@@ -518,6 +544,7 @@ impl eframe::App for JLauncherApp {
             if self.show_settings {
                 self.show_settings = false;
                 crate::coordinator::set_show_settings(false);
+                self.should_focus_search = true;
             } else {
                 info!("Escape pressed -> hiding window");
                 self.hide_window(ctx);
@@ -539,6 +566,9 @@ impl eframe::App for JLauncherApp {
             if alt_s_pressed {
                 self.show_settings = !self.show_settings;
                 crate::coordinator::set_show_settings(self.show_settings);
+                if !self.show_settings {
+                    self.should_focus_search = true;
+                }
             }
         }
 
@@ -575,9 +605,11 @@ impl JLauncherApp {
                 .desired_width(ui.available_width() - 70.0);
 
             let response = ui.add(text_edit);
-            if self.should_focus_search {
+            if self.should_focus_search || !response.has_focus() {
                 response.request_focus();
-                self.should_focus_search = false;
+                if response.has_focus() {
+                    self.should_focus_search = false;
+                }
             }
 
             if response.changed() {
@@ -818,6 +850,7 @@ impl JLauncherApp {
                 if ui.button("✕ Close").clicked() {
                     self.show_settings = false;
                     crate::coordinator::set_show_settings(false);
+                    self.should_focus_search = true;
                 }
             });
         });

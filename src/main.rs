@@ -327,7 +327,8 @@ fn main() -> eframe::Result<()> {
             .with_inner_size([650.0, 440.0])
             .with_min_inner_size([500.0, 300.0])
             .with_resizable(false)
-            .with_visible(!start_hidden),
+            .with_visible(!start_hidden)
+            .with_active(true),
         ..Default::default()
     };
 

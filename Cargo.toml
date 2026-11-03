@@ -1,6 +1,6 @@
 [package]
 name = "jlauncher"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 authors = ["JLauncher Contributors"]
 description = "Fast, lightweight keyboard launcher for Linux (X11 & Wayland) and Windows"

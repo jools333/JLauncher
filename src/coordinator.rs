@@ -180,11 +180,15 @@ pub fn show_window(with_settings: bool) {
         let hwnd = ensure_main_hwnd();
         if hwnd != 0 {
             unsafe {
-                use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+                use windows_sys::Win32::System::Threading::{
+                    AttachThreadInput, GetCurrentProcessId, GetCurrentThreadId,
+                };
+                use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
                 use windows_sys::Win32::UI::WindowsAndMessaging::{
-                    AllowSetForegroundWindow, BringWindowToTop, GetSystemMetrics,
-                    SetForegroundWindow, SetWindowPos, ShowWindow, HWND_TOPMOST, SM_CXSCREEN,
-                    SM_CYSCREEN, SWP_SHOWWINDOW, SW_RESTORE, SW_SHOW,
+                    AllowSetForegroundWindow, BringWindowToTop, GetForegroundWindow,
+                    GetSystemMetrics, GetWindowThreadProcessId, SetForegroundWindow, SetWindowPos,
+                    ShowWindow, HWND_TOPMOST, SM_CXSCREEN, SM_CYSCREEN, SWP_SHOWWINDOW, SW_RESTORE,
+                    SW_SHOW,
                 };
                 let h = hwnd as windows_sys::Win32::Foundation::HWND;
                 AllowSetForegroundWindow(GetCurrentProcessId());
@@ -197,8 +201,33 @@ pub fn show_window(with_settings: bool) {
                 ShowWindow(h, SW_RESTORE);
                 ShowWindow(h, SW_SHOW);
                 SetWindowPos(h, HWND_TOPMOST, x, y, 650, 440, SWP_SHOWWINDOW);
-                SetForegroundWindow(h);
-                BringWindowToTop(h);
+
+                let fg_hwnd = GetForegroundWindow();
+                let current_thread = GetCurrentThreadId();
+                let target_thread = GetWindowThreadProcessId(h, std::ptr::null_mut());
+                let fg_thread = if !fg_hwnd.is_null() {
+                    GetWindowThreadProcessId(fg_hwnd, std::ptr::null_mut())
+                } else {
+                    0
+                };
+
+                if fg_thread != 0 && target_thread != 0 && fg_thread != target_thread {
+                    AttachThreadInput(target_thread, fg_thread, 1);
+                    if current_thread != target_thread {
+                        AttachThreadInput(current_thread, target_thread, 1);
+                    }
+                    BringWindowToTop(h);
+                    SetForegroundWindow(h);
+                    SetFocus(h);
+                    if current_thread != target_thread {
+                        AttachThreadInput(current_thread, target_thread, 0);
+                    }
+                    AttachThreadInput(target_thread, fg_thread, 0);
+                } else {
+                    BringWindowToTop(h);
+                    SetForegroundWindow(h);
+                    SetFocus(h);
+                }
             }
             apply_rounded_corners(hwnd);
         }
@@ -206,6 +235,7 @@ pub fn show_window(with_settings: bool) {
 
     let lock = EGUI_CTX.lock().unwrap();
     if let Some(ctx) = lock.as_ref() {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         ctx.request_repaint();
     }
 }
