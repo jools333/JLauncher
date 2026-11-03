@@ -38,6 +38,9 @@ impl HotkeyService {
             .register(hotkey)
             .map_err(|e| format!("Failed to register hotkey '{}': {:?}", shortcut_str, e))?;
 
+        #[cfg(target_os = "linux")]
+        sync_gnome_hotkey(shortcut_str);
+
         info!("Registered global hotkey: {}", shortcut_str);
         self.current_hotkey = Some(hotkey);
         Ok(hotkey)
@@ -137,6 +140,73 @@ pub fn parse_hotkey(s: &str) -> Option<HotKey> {
     };
 
     Some(HotKey::new(mods, code))
+}
+
+#[cfg(target_os = "linux")]
+pub fn sync_gnome_hotkey(hotkey_str: &str) {
+    let parts: Vec<&str> = hotkey_str.split('+').map(|p| p.trim()).collect();
+    let mut gnome_mods = String::new();
+    let mut key = String::new();
+
+    for part in parts {
+        let lower = part.to_lowercase();
+        match lower.as_str() {
+            "ctrl" | "control" => gnome_mods.push_str("<Control>"),
+            "alt" => gnome_mods.push_str("<Alt>"),
+            "shift" => gnome_mods.push_str("<Shift>"),
+            "super" | "win" | "meta" | "cmd" => gnome_mods.push_str("<Super>"),
+            "space" => key = "space".to_string(),
+            "enter" | "return" => key = "Return".to_string(),
+            "tab" => key = "Tab".to_string(),
+            "esc" | "escape" => key = "Escape".to_string(),
+            other => {
+                if other.starts_with('f') && other.len() > 1 && other[1..].chars().all(|c| c.is_ascii_digit()) {
+                    key = other.to_uppercase();
+                } else if other.len() == 1 {
+                    key = other.to_lowercase();
+                }
+            }
+        }
+    }
+
+    if key.is_empty() {
+        return;
+    }
+
+    let binding = format!("{}{}", gnome_mods, key);
+
+    // If binding is <Alt>space, ensure GNOME's activate-window-menu does not intercept it
+    if binding == "<Alt>space" {
+        let _ = std::process::Command::new("gsettings")
+            .args(["set", "org.gnome.desktop.wm.keybindings", "activate-window-menu", "[]"])
+            .status();
+    }
+
+    let path = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/jlauncher/";
+    let schema = format!("org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{}", path);
+
+    let _ = std::process::Command::new("gsettings")
+        .args(["set", &schema, "name", "JLauncher"])
+        .status();
+    let _ = std::process::Command::new("gsettings")
+        .args(["set", &schema, "command", "jlauncher --toggle"])
+        .status();
+    let _ = std::process::Command::new("gsettings")
+        .args(["set", &schema, "binding", &binding])
+        .status();
+
+    if let Ok(output) = std::process::Command::new("gsettings")
+        .args(["get", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings"])
+        .output()
+    {
+        let current = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !current.contains(path) && current.contains('[') {
+            let new_list = current.replace(']', &format!(", '{}']", path));
+            let _ = std::process::Command::new("gsettings")
+                .args(["set", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings", &new_list])
+                .status();
+        }
+    }
 }
 
 #[cfg(test)]

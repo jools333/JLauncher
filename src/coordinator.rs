@@ -7,6 +7,7 @@ static IS_VISIBLE: AtomicBool = AtomicBool::new(true);
 static SHOW_SETTINGS: AtomicBool = AtomicBool::new(false);
 static SHOULD_RESCAN: AtomicBool = AtomicBool::new(false);
 static SHOULD_QUIT: AtomicBool = AtomicBool::new(false);
+#[allow(dead_code)]
 static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
 static REVISION: AtomicU64 = AtomicU64::new(1);
 static EGUI_CTX: Mutex<Option<egui::Context>> = Mutex::new(None);
@@ -23,6 +24,7 @@ pub fn init(ctx: egui::Context, start_hidden: bool) {
     *lock = Some(ctx);
 }
 
+#[allow(dead_code)]
 pub fn set_main_hwnd(hwnd: isize) {
     if hwnd != 0 {
         let old = MAIN_HWND.swap(hwnd, Ordering::SeqCst);
@@ -34,6 +36,7 @@ pub fn set_main_hwnd(hwnd: isize) {
     }
 }
 
+#[allow(dead_code)]
 pub fn get_main_hwnd() -> isize {
     MAIN_HWND.load(Ordering::SeqCst)
 }
@@ -203,18 +206,16 @@ pub fn show_window(with_settings: bool) {
 
     let lock = EGUI_CTX.lock().unwrap();
     if let Some(ctx) = lock.as_ref() {
-        #[cfg(not(target_os = "windows"))]
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         ctx.request_repaint();
     }
 }
 
 pub fn hide_window() {
-    log::info!("Coordinator: hide_window");
+    log::info!("Coordinator: hide_window [START]");
     IS_VISIBLE.store(false, Ordering::SeqCst);
     SHOW_SETTINGS.store(false, Ordering::SeqCst);
-    REVISION.fetch_add(1, Ordering::SeqCst);
+    let rev = REVISION.fetch_add(1, Ordering::SeqCst) + 1;
+    log::info!("Coordinator: hide_window revision incremented to {}", rev);
 
     #[cfg(target_os = "windows")]
     {
@@ -228,14 +229,11 @@ pub fn hide_window() {
         }
     }
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        let lock = EGUI_CTX.lock().unwrap();
-        if let Some(ctx) = lock.as_ref() {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-            ctx.request_repaint();
-        }
+    let lock = EGUI_CTX.lock().unwrap();
+    if let Some(ctx) = lock.as_ref() {
+        ctx.request_repaint();
     }
+    log::info!("Coordinator: hide_window [DONE]");
 }
 
 pub fn toggle_window() {

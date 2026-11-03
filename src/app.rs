@@ -232,12 +232,45 @@ fn find_and_register_main_hwnd() {
     }
 }
 
-    pub fn set_visible(&mut self, _ctx: &egui::Context, visible: bool) {
-        info!("set_visible: {}", visible);
+    pub fn hide_window(&mut self, ctx: &egui::Context) {
+        info!("JLauncherApp::hide_window [START]");
+        crate::coordinator::hide_window();
+        #[cfg(not(target_os = "windows"))]
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        self.is_visible = false;
+        self.last_revision = crate::coordinator::get_revision();
+        self.was_focused = false;
+        self.visible_since = None;
+        info!("JLauncherApp::hide_window [DONE]");
+    }
+
+    pub fn show_window(&mut self, ctx: &egui::Context) {
+        info!("JLauncherApp::show_window [START]");
+        crate::coordinator::show_window(self.show_settings);
+        #[cfg(not(target_os = "windows"))]
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
+        self.is_visible = true;
+        self.last_revision = crate::coordinator::get_revision();
+        self.was_focused = false;
+        self.visible_since = Some(std::time::Instant::now());
+
+        if self.config.clear_on_hide && !self.is_calculator_query() {
+            self.query.clear();
+        }
+        self.selected_index = 0;
+        self.should_focus_search = true;
+        self.update_search();
+        info!("JLauncherApp::show_window [DONE]");
+    }
+
+    pub fn set_visible(&mut self, ctx: &egui::Context, visible: bool) {
         if visible {
-            crate::coordinator::show_window(self.show_settings);
+            self.show_window(ctx);
         } else {
-            crate::coordinator::hide_window();
+            self.hide_window(ctx);
         }
     }
 
@@ -306,21 +339,21 @@ fn find_and_register_main_hwnd() {
                     let _ = cb.set_text(&calc.formatted_result);
                     self.show_toast(format!("Copied '{}' to clipboard!", calc.formatted_result));
                 }
-                self.set_visible(ctx, false);
+                self.hide_window(ctx);
             }
             LauncherItem::System(action) => {
                 info!("Executing system action: {}", action.id);
                 if let Err(e) = execute_action(action.id) {
                     self.show_toast(format!("Action error: {}", e));
                 }
-                self.set_visible(ctx, false);
+                self.hide_window(ctx);
             }
             LauncherItem::App(app) => {
                 info!("Launching application: {}", app.name);
                 if let Err(e) = AppIndex::launch(app) {
                     self.show_toast(format!("Failed to launch: {}", e));
                 }
-                self.set_visible(ctx, false);
+                self.hide_window(ctx);
             }
         }
     }
@@ -372,7 +405,20 @@ impl eframe::App for JLauncherApp {
             return;
         }
 
+        // Intercept close requests (e.g. from window manager) and minimize/hide instead of exiting
+        if ctx.input(|i| i.viewport().close_requested()) {
+            if crate::coordinator::should_quit() || self.should_quit {
+                // Allow exit
+                return;
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.hide_window(ctx);
+                return;
+            }
+        }
+
         let rev = crate::coordinator::get_revision();
+        log::trace!("App::update: frame start, rev={}, last_rev={}, is_visible={}", rev, self.last_revision, self.is_visible);
         if rev != self.last_revision {
             self.last_revision = rev;
             let coord_visible = crate::coordinator::is_visible();
@@ -385,8 +431,10 @@ impl eframe::App for JLauncherApp {
 
             if self.is_visible {
                 #[cfg(not(target_os = "windows"))]
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                }
 
                 if self.config.clear_on_hide && !self.is_calculator_query() {
                     self.query.clear();
@@ -405,59 +453,65 @@ impl eframe::App for JLauncherApp {
             }
         }
 
-        // Re-request frame periodically for responsive tray and hotkey polling
-        ctx.request_repaint_after(std::time::Duration::from_millis(50));
-
         if !self.is_visible {
             return;
         }
 
-        // Hide window when focus is lost
+        // Only request periodic repaint when visible (for UI animations)
+        ctx.request_repaint_after(std::time::Duration::from_millis(50));
+
+        // Hide window when focus is lost (only if the window previously gained focus)
         let is_focused = is_window_focused(ctx);
         if is_focused {
             self.was_focused = true;
         } else if self.was_focused {
-            info!("Launcher window lost focus -> hiding window");
-            self.set_visible(ctx, false);
-            return;
-        } else if let Some(since) = self.visible_since {
-            if since.elapsed() > std::time::Duration::from_millis(600) {
-                info!("Launcher window did not gain focus after 600ms -> hiding window");
-                self.set_visible(ctx, false);
+            let grace_passed = self
+                .visible_since
+                .map_or(true, |t| t.elapsed() >= std::time::Duration::from_millis(200));
+            if grace_passed {
+                info!("Launcher window lost focus -> hiding window");
+                self.hide_window(ctx);
                 return;
             }
         }
 
-        // Keyboard navigation handling
-        if self.is_visible {
-            ctx.input(|i| {
-                if i.key_pressed(Key::Escape) {
-                    if self.show_settings {
-                        self.show_settings = false;
-                        crate::coordinator::set_show_settings(false);
-                    } else {
-                        self.set_visible(ctx, false);
-                    }
-                }
+        // Extract keyboard navigation inputs safely without holding ctx.input lock
+        let (escape_pressed, down_pressed, up_pressed, enter_pressed, alt_s_pressed) = ctx.input(|i| {
+            (
+                i.key_pressed(Key::Escape),
+                i.key_pressed(Key::ArrowDown),
+                i.key_pressed(Key::ArrowUp),
+                i.key_pressed(Key::Enter),
+                i.modifiers.alt && i.key_pressed(Key::S),
+            )
+        });
 
-                if !self.show_settings {
-                    if i.key_pressed(Key::ArrowDown) {
-                        if !self.results.is_empty() {
-                            self.selected_index = (self.selected_index + 1).min(self.results.len() - 1);
-                        }
-                    }
-                    if i.key_pressed(Key::ArrowUp) {
-                        self.selected_index = self.selected_index.saturating_sub(1);
-                    }
-                    if i.key_pressed(Key::Enter) {
-                        self.execute_selected(ctx);
-                    }
-                    if i.modifiers.alt && i.key_pressed(Key::S) {
-                        self.show_settings = !self.show_settings;
-                        crate::coordinator::set_show_settings(self.show_settings);
-                    }
-                }
-            });
+        if escape_pressed {
+            if self.show_settings {
+                self.show_settings = false;
+                crate::coordinator::set_show_settings(false);
+            } else {
+                info!("Escape pressed -> hiding window");
+                self.hide_window(ctx);
+                return;
+            }
+        }
+
+        if !self.show_settings {
+            if down_pressed && !self.results.is_empty() {
+                self.selected_index = (self.selected_index + 1).min(self.results.len() - 1);
+            }
+            if up_pressed {
+                self.selected_index = self.selected_index.saturating_sub(1);
+            }
+            if enter_pressed {
+                self.execute_selected(ctx);
+                return;
+            }
+            if alt_s_pressed {
+                self.show_settings = !self.show_settings;
+                crate::coordinator::set_show_settings(self.show_settings);
+            }
         }
 
         egui::CentralPanel::default()

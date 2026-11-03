@@ -210,6 +210,21 @@ fn ensure_interactive_desktop() {
 }
 
 fn main() -> eframe::Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        // When running under Linux desktop, if DISPLAY is present and user didn't explicitly
+        // specify JLAUNCHER_BACKEND=wayland, prefer X11 (via Xwayland or native X11).
+        // This is essential because Wayland xdg-shell does not support hiding windows
+        // (set_visible is a no-op on Wayland in winit), does not support global hotkeys,
+        // and causes frame callback hangs when unmapped.
+        if std::env::var("JLAUNCHER_BACKEND").map(|v| v != "wayland").unwrap_or(true)
+            && std::env::var("DISPLAY").is_ok()
+        {
+            std::env::remove_var("WAYLAND_DISPLAY");
+            std::env::remove_var("WAYLAND_SOCKET");
+        }
+    }
+
     init_logger();
 
     let args: Vec<String> = env::args().collect();
