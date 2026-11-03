@@ -9,6 +9,7 @@ mod hotkey;
 mod ipc;
 mod system;
 mod tray;
+mod updater;
 
 use app::JLauncherApp;
 use ipc::{send_command, start_server, IpcCommand};

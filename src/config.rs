@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub hotkey: String,
@@ -13,6 +17,8 @@ pub struct Config {
     pub dark_theme: bool,
     pub enable_calculator: bool,
     pub enable_system_commands: bool,
+    #[serde(default = "default_true")]
+    pub auto_check_updates: bool,
 }
 
 impl Default for Config {
@@ -25,6 +31,7 @@ impl Default for Config {
             dark_theme: true,
             enable_calculator: true,
             enable_system_commands: true,
+            auto_check_updates: true,
         }
     }
 }
@@ -86,6 +93,7 @@ mod tests {
         assert_eq!(default_config.max_results, 8);
         assert!(default_config.enable_calculator);
         assert!(default_config.enable_system_commands);
+        assert!(default_config.auto_check_updates);
 
         let json = serde_json::to_string(&default_config).unwrap();
         let loaded: Config = serde_json::from_str(&json).unwrap();

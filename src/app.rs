@@ -5,6 +5,7 @@ use crate::hotkey::HotkeyService;
 use crate::ipc::IpcCommand;
 use crate::system::{execute_action, SystemAction, SYSTEM_ACTIONS};
 use crate::tray::TrayService;
+use crate::updater::{UpdateState, UpdaterService, CURRENT_VERSION};
 use arboard::Clipboard;
 use eframe::egui::{self, Color32, Key, Rounding, Stroke};
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -141,6 +142,7 @@ pub struct JLauncherApp {
     hotkey_service: HotkeyService,
     _tray_service: Option<TrayService>,
     _ipc_rx: Receiver<IpcCommand>,
+    updater: UpdaterService,
 
     // UI state
     is_visible: bool,
@@ -200,6 +202,11 @@ impl JLauncherApp {
 
         let initial_hotkey = config.hotkey.clone();
 
+        let updater = UpdaterService::new();
+        if config.auto_check_updates {
+            updater.check_in_background();
+        }
+
         let mut app = Self {
             config,
             query: String::new(),
@@ -211,6 +218,7 @@ impl JLauncherApp {
             hotkey_service,
             _tray_service: tray_service,
             _ipc_rx: ipc_rx,
+            updater,
             is_visible: !start_hidden,
             show_settings: false,
             status_toast: None,
@@ -652,7 +660,7 @@ impl JLauncherApp {
         });
     }
 
-    fn render_hotkey_hints(&self, ui: &mut egui::Ui) {
+    fn render_hotkey_hints(&mut self, ui: &mut egui::Ui) {
         let hint_color = Color32::from_rgb(140, 148, 165);
 
         render_keycap(ui, "↑");
@@ -677,6 +685,37 @@ impl JLauncherApp {
             ui.label(egui::RichText::new("Settings").color(hint_color).size(11.0));
             ui.add_space(4.0);
             render_keycap(ui, "Alt+S");
+
+            match self.updater.state() {
+                UpdateState::Available(info) => {
+                    ui.add_space(10.0);
+                    if ui
+                        .link(
+                            egui::RichText::new(format!("✨ Update {} available", info.version))
+                                .color(Color32::from_rgb(96, 165, 250))
+                                .size(11.0),
+                        )
+                        .clicked()
+                    {
+                        self.show_settings = true;
+                        crate::coordinator::set_show_settings(true);
+                    }
+                }
+                UpdateState::ReadyToRestart => {
+                    ui.add_space(10.0);
+                    if ui
+                        .link(
+                            egui::RichText::new("🔄 Restart to apply update")
+                                .color(Color32::from_rgb(52, 211, 153))
+                                .size(11.0),
+                        )
+                        .clicked()
+                    {
+                        let _ = crate::updater::UpdaterService::restart();
+                    }
+                }
+                _ => {}
+            }
         });
     }
 
@@ -788,7 +827,7 @@ impl JLauncherApp {
         ui.add_space(8.0);
 
         egui::ScrollArea::vertical()
-            .max_height(340.0)
+            .max_height(360.0)
             .show(ui, |ui| {
                 // Hotkey configuration
                 ui.label(egui::RichText::new("Global Shortcut / Горячая клавиша:").strong());
@@ -880,6 +919,195 @@ impl JLauncherApp {
                     self.app_index.refresh();
                     self.update_search();
                     self.show_toast("Applications rescanned!".into());
+                }
+
+                ui.add_space(14.0);
+                ui.separator();
+                ui.add_space(8.0);
+
+                // Auto-updates section
+                ui.label(
+                    egui::RichText::new("🚀 Updates / Обновления")
+                        .size(15.0)
+                        .strong()
+                        .color(Color32::WHITE),
+                );
+                ui.add_space(4.0);
+
+                let mut auto_check = self.config.auto_check_updates;
+                if ui
+                    .checkbox(
+                        &mut auto_check,
+                        "Check for updates automatically / Автопроверка обновлений при запуске",
+                    )
+                    .changed()
+                {
+                    self.config.auto_check_updates = auto_check;
+                    let _ = self.config.save();
+                }
+
+                ui.add_space(6.0);
+
+                let update_state = self.updater.state();
+                match &update_state {
+                    UpdateState::Idle => {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "Current version: v{}",
+                                    CURRENT_VERSION
+                                ))
+                                .color(Color32::from_rgb(160, 168, 185)),
+                            );
+                            if ui.button("🔍 Check for Updates / Проверить").clicked() {
+                                self.updater.check_in_background();
+                            }
+                        });
+                    }
+                    UpdateState::Checking => {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label("Checking for updates / Поиск обновлений...");
+                        });
+                    }
+                    UpdateState::UpToDate => {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "✓ Up to date (v{}) / У вас актуальная версия",
+                                    CURRENT_VERSION
+                                ))
+                                .color(Color32::from_rgb(52, 211, 153)),
+                            );
+                            if ui.button("Check again / Проверить снова").clicked() {
+                                self.updater.check_in_background();
+                            }
+                        });
+                    }
+                    UpdateState::Available(info) => {
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(26, 36, 56))
+                            .stroke(Stroke::new(1.0_f32, Color32::from_rgb(59, 130, 246)))
+                            .rounding(Rounding::same(8.0))
+                            .inner_margin(egui::Margin::symmetric(10.0, 8.0))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        egui::RichText::new(format!(
+                                            "🎉 New version available: {}",
+                                            info.version
+                                        ))
+                                        .strong()
+                                        .color(Color32::from_rgb(96, 165, 250)),
+                                    );
+                                    let size_mb = info.asset_size as f64 / (1024.0 * 1024.0);
+                                    ui.label(
+                                        egui::RichText::new(format!("({:.1} MB)", size_mb))
+                                            .color(Color32::from_rgb(160, 168, 185))
+                                            .size(12.0),
+                                    );
+                                });
+
+                                if !info.release_notes.is_empty() {
+                                    ui.add_space(4.0);
+                                    egui::CollapsingHeader::new("Changelog / Что нового")
+                                        .id_salt("update_notes")
+                                        .default_open(false)
+                                        .show(ui, |ui| {
+                                            egui::ScrollArea::vertical()
+                                                .max_height(100.0)
+                                                .show(ui, |ui| {
+                                                    ui.label(
+                                                        egui::RichText::new(&info.release_notes)
+                                                            .color(Color32::from_rgb(
+                                                                200, 208, 225,
+                                                            ))
+                                                            .size(12.0),
+                                                    );
+                                                });
+                                        });
+                                }
+
+                                ui.add_space(6.0);
+                                ui.horizontal(|ui| {
+                                    if ui
+                                        .button(
+                                            egui::RichText::new(
+                                                "⬇ Download & Install / Скачать и обновить",
+                                            )
+                                            .strong(),
+                                        )
+                                        .clicked()
+                                    {
+                                        self.updater.download_and_install_in_background();
+                                    }
+                                    if ui.button("Check again / Проверить снова").clicked() {
+                                        self.updater.check_in_background();
+                                    }
+                                });
+                            });
+                    }
+                    UpdateState::Downloading {
+                        progress,
+                        downloaded,
+                        total,
+                    } => {
+                        let dl_mb = *downloaded as f64 / (1024.0 * 1024.0);
+                        let tot_mb = *total as f64 / (1024.0 * 1024.0);
+                        let pct = (*progress * 100.0) as u32;
+
+                        ui.label(format!(
+                            "Downloading update: {:.1} MB / {:.1} MB ({}%)",
+                            dl_mb, tot_mb, pct
+                        ));
+                        ui.add(
+                            egui::ProgressBar::new(*progress)
+                                .show_percentage()
+                                .animate(true),
+                        );
+                    }
+                    UpdateState::ReadyToRestart => {
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(20, 45, 30))
+                            .stroke(Stroke::new(1.0_f32, Color32::from_rgb(52, 211, 153)))
+                            .rounding(Rounding::same(8.0))
+                            .inner_margin(egui::Margin::symmetric(10.0, 8.0))
+                            .show(ui, |ui| {
+                                ui.label(
+                                    egui::RichText::new(
+                                        "✓ Update installed successfully! / Обновление успешно установлено!",
+                                    )
+                                    .strong()
+                                    .color(Color32::from_rgb(52, 211, 153)),
+                                );
+                                ui.add_space(4.0);
+                                if ui
+                                    .button(
+                                        egui::RichText::new(
+                                            "🔄 Restart Now / Перезапустить сейчас",
+                                        )
+                                        .strong(),
+                                    )
+                                    .clicked()
+                                {
+                                    if let Err(e) = crate::updater::UpdaterService::restart() {
+                                        self.show_toast(format!("Restart failed: {}", e));
+                                    }
+                                }
+                            });
+                    }
+                    UpdateState::Error(err) => {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new(format!("Update check failed: {}", err))
+                                    .color(Color32::from_rgb(248, 113, 113))
+                                    .size(12.0),
+                            );
+                            if ui.button("Retry / Повторить").clicked() {
+                                self.updater.check_in_background();
+                            }
+                        });
+                    }
                 }
             });
     }
