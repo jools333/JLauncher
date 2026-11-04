@@ -621,10 +621,11 @@ impl eframe::App for JLauncherApp {
             egui::vec2(card_w, card_h),
         );
 
-        // Click outside the modal card dismisses the launcher
+        // Click outside the modal card dismisses the launcher (with a 6px tolerance buffer)
         if ctx.input(|i| i.pointer.any_pressed()) {
             if let Some(pos) = ctx.input(|i| i.pointer.interact_pos()) {
-                if !card_rect.contains(pos) {
+                let dismiss_rect = card_rect.expand(6.0);
+                if !dismiss_rect.contains(pos) {
                     info!("Clicked outside launcher modal card at {:?} -> hiding", pos);
                     self.hide_window(ctx);
                     return;
@@ -738,19 +739,20 @@ impl JLauncherApp {
             );
             ui.add_space(4.0);
 
+            let button_size = egui::vec2(32.0, 32.0);
+            let available_w = (ui.available_width() - button_size.x - ui.spacing().item_spacing.x - 4.0).max(50.0);
+
             let text_edit = egui::TextEdit::singleline(&mut self.query)
                 .hint_text("Type an app name, math expression (=2+2), or command...")
                 .font(egui::FontId::proportional(16.0))
                 .text_color(Color32::WHITE)
                 .frame(false)
-                .desired_width(ui.available_width() - 40.0);
+                .desired_width(available_w);
 
             let response = ui.add(text_edit);
-            if self.should_focus_search || !response.has_focus() {
+            if self.should_focus_search {
                 response.request_focus();
-                if response.has_focus() {
-                    self.should_focus_search = false;
-                }
+                self.should_focus_search = false;
             }
 
             if response.changed() {
@@ -759,23 +761,38 @@ impl JLauncherApp {
                 self.update_search();
             }
 
-            // Settings button on far right
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .add(
-                        egui::Button::new(
-                            egui::RichText::new("⚙")
-                                .size(17.0)
-                                .color(Color32::from_rgb(148, 163, 184)),
-                        )
-                        .frame(false),
-                    )
-                    .clicked()
-                {
-                    self.show_settings = true;
-                    crate::coordinator::set_show_settings(true);
-                }
-            });
+            // Settings button on far right with prominent click target and hover feedback
+            let (gear_rect, gear_resp) = ui.allocate_exact_size(button_size, egui::Sense::click());
+            let gear_hovered = gear_resp.hovered();
+            let gear_bg = if gear_hovered {
+                Color32::from_rgba_unmultiplied(255, 255, 255, 30)
+            } else {
+                Color32::TRANSPARENT
+            };
+            let gear_color = if gear_hovered {
+                Color32::WHITE
+            } else {
+                Color32::from_rgb(148, 163, 184)
+            };
+
+            ui.painter().rect_filled(gear_rect, Rounding::same(8.0), gear_bg);
+            ui.painter().text(
+                gear_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "⚙",
+                egui::FontId::proportional(18.0),
+                gear_color,
+            );
+
+            let gear_resp = gear_resp
+                .on_hover_cursor(egui::CursorIcon::PointingHand)
+                .on_hover_text("Settings (Alt+S)");
+
+            if gear_resp.clicked() {
+                info!("Settings gear button clicked -> opening settings");
+                self.show_settings = true;
+                crate::coordinator::set_show_settings(true);
+            }
         });
 
         ui.add_space(8.0);
@@ -1083,13 +1100,55 @@ impl JLauncherApp {
                     .strong()
                     .color(Color32::WHITE),
             );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("✕ Close").clicked() {
-                    self.show_settings = false;
-                    crate::coordinator::set_show_settings(false);
-                    self.should_focus_search = true;
-                }
-            });
+
+            let close_size = egui::vec2(76.0, 30.0);
+            let space = (ui.available_width() - close_size.x).max(0.0);
+            if space > 0.0 {
+                ui.add_space(space);
+            }
+
+            let (close_rect, close_resp) = ui.allocate_exact_size(close_size, egui::Sense::click());
+            let close_hovered = close_resp.hovered();
+            let close_bg = if close_hovered {
+                Color32::from_rgb(52, 60, 78)
+            } else {
+                Color32::from_rgb(34, 40, 54)
+            };
+            let close_border = if close_hovered {
+                Color32::from_rgb(90, 105, 135)
+            } else {
+                Color32::from_rgb(60, 70, 92)
+            };
+            let close_text_color = if close_hovered {
+                Color32::WHITE
+            } else {
+                Color32::from_rgb(220, 228, 245)
+            };
+
+            ui.painter().rect(
+                close_rect,
+                Rounding::same(6.0),
+                close_bg,
+                Stroke::new(1.0_f32, close_border),
+            );
+            ui.painter().text(
+                close_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "✕ Close",
+                egui::FontId::proportional(13.0),
+                close_text_color,
+            );
+
+            let close_resp = close_resp
+                .on_hover_cursor(egui::CursorIcon::PointingHand)
+                .on_hover_text("Close settings (Esc)");
+
+            if close_resp.clicked() {
+                info!("Close button clicked -> returning to search");
+                self.show_settings = false;
+                crate::coordinator::set_show_settings(false);
+                self.should_focus_search = true;
+            }
         });
 
         ui.add_space(8.0);
