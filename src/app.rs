@@ -142,6 +142,7 @@ pub struct JLauncherApp {
     config: Config,
     query: String,
     selected_index: usize,
+    scroll_to_selected: bool,
     app_index: AppIndex,
     calculator: Calculator,
     matcher: SkimMatcherV2,
@@ -220,6 +221,7 @@ impl JLauncherApp {
             config,
             query: String::new(),
             selected_index: 0,
+            scroll_to_selected: true,
             app_index,
             calculator,
             matcher,
@@ -287,6 +289,7 @@ impl JLauncherApp {
             self.query.clear();
         }
         self.selected_index = 0;
+        self.scroll_to_selected = true;
         self.should_focus_search = true;
         self.update_search();
         info!("JLauncherApp::show_window [DONE]");
@@ -493,6 +496,7 @@ impl eframe::App for JLauncherApp {
                     self.query.clear();
                 }
                 self.selected_index = 0;
+                self.scroll_to_selected = true;
                 self.should_focus_search = true;
                 self.update_search();
 
@@ -531,10 +535,14 @@ impl eframe::App for JLauncherApp {
         // Extract keyboard navigation inputs safely without holding ctx.input lock
         let (escape_pressed, down_pressed, up_pressed, enter_pressed, alt_s_pressed) =
             ctx.input(|i| {
+                let down = i.key_pressed(Key::ArrowDown)
+                    || (i.key_pressed(Key::Tab) && !i.modifiers.shift);
+                let up = i.key_pressed(Key::ArrowUp)
+                    || (i.key_pressed(Key::Tab) && i.modifiers.shift);
                 (
                     i.key_pressed(Key::Escape),
-                    i.key_pressed(Key::ArrowDown),
-                    i.key_pressed(Key::ArrowUp),
+                    down,
+                    up,
                     i.key_pressed(Key::Enter),
                     i.modifiers.alt && i.key_pressed(Key::S),
                 )
@@ -555,9 +563,11 @@ impl eframe::App for JLauncherApp {
         if !self.show_settings {
             if down_pressed && !self.results.is_empty() {
                 self.selected_index = (self.selected_index + 1).min(self.results.len() - 1);
+                self.scroll_to_selected = true;
             }
             if up_pressed {
                 self.selected_index = self.selected_index.saturating_sub(1);
+                self.scroll_to_selected = true;
             }
             if enter_pressed {
                 self.execute_selected(ctx);
@@ -614,6 +624,7 @@ impl JLauncherApp {
 
             if response.changed() {
                 self.selected_index = 0;
+                self.scroll_to_selected = true;
                 self.update_search();
             }
 
@@ -645,19 +656,27 @@ impl JLauncherApp {
                         );
                     });
                 } else {
+                    let mouse_moved = ctx.input(|i| i.pointer.delta().length_sq() > 1.0);
                     let mut clicked_index = None;
                     let mut hovered_index = None;
 
                     for (index, item) in self.results.iter().enumerate() {
                         let is_selected = index == self.selected_index;
                         let row_response = self.render_result_row(ui, item, is_selected);
+
+                        if is_selected && self.scroll_to_selected {
+                            row_response.scroll_to_me(Some(egui::Align::Center));
+                        }
+
                         if row_response.clicked() {
                             clicked_index = Some(index);
-                        } else if row_response.hovered() {
+                        } else if mouse_moved && row_response.hovered() {
                             hovered_index = Some(index);
                         }
                         ui.add_space(2.0);
                     }
+
+                    self.scroll_to_selected = false;
 
                     if let Some(index) = hovered_index {
                         self.selected_index = index;
@@ -769,7 +788,7 @@ impl JLauncherApp {
             Stroke::NONE
         };
 
-        egui::Frame::none()
+        let frame_resp = egui::Frame::none()
             .fill(bg)
             .stroke(stroke)
             .rounding(Rounding::same(8.0))
@@ -834,8 +853,12 @@ impl JLauncherApp {
                         });
                     }
                 });
-            })
+            });
+
+        frame_resp
             .response
+            .interact(egui::Sense::click())
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
     }
 
     fn render_settings(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {

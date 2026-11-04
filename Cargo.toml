@@ -26,6 +26,7 @@ semver = "1.0"
 
 [target.'cfg(not(windows))'.dependencies]
 tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
+openssl = { version = "0.10", features = ["vendored"] }
 
 [target.'cfg(windows)'.dependencies]
 tray-icon = "0.26"
