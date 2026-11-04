@@ -1,3 +1,4 @@
+use crate::apps::icons::{load_icon_texture, IconIndex};
 use crate::apps::{AppEntry, AppIndex};
 use crate::calculator::{CalcResult, Calculator};
 use crate::config::Config;
@@ -11,7 +12,9 @@ use eframe::egui::{self, Color32, Key, Rounding, Stroke};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use log::{error, info};
+use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum LauncherItem {
@@ -90,10 +93,59 @@ fn setup_fonts(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
+fn get_badge_color(name: &str) -> Color32 {
+    let mut hash: u32 = 5381;
+    for b in name.bytes() {
+        hash = ((hash << 5).wrapping_add(hash)).wrapping_add(b as u32);
+    }
+    const COLORS: &[(u8, u8, u8)] = &[
+        (37, 99, 235),  // Blue
+        (16, 185, 129), // Emerald
+        (139, 92, 246), // Violet
+        (245, 158, 11), // Amber
+        (239, 68, 68),  // Red
+        (6, 182, 212),  // Cyan
+        (236, 72, 153), // Pink
+        (99, 102, 241), // Indigo
+        (20, 184, 166), // Teal
+        (249, 115, 22), // Orange
+    ];
+    let (r, g, b) = COLORS[(hash as usize) % COLORS.len()];
+    Color32::from_rgb(r, g, b)
+}
+
+fn render_icon_or_badge(
+    ui: &mut egui::Ui,
+    texture: Option<&egui::TextureHandle>,
+    fallback_char: &str,
+    fallback_color: Color32,
+) {
+    let size = egui::vec2(36.0, 36.0);
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+
+    if let Some(tex) = texture {
+        ui.painter().image(
+            tex.id(),
+            rect,
+            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+            Color32::WHITE,
+        );
+    } else {
+        ui.painter().rect_filled(rect, Rounding::same(8.0), fallback_color);
+        ui.painter().text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            fallback_char,
+            egui::FontId::proportional(16.0),
+            Color32::WHITE,
+        );
+    }
+}
+
 fn render_keycap(ui: &mut egui::Ui, text: &str) {
-    let key_bg = Color32::from_rgb(38, 43, 56);
-    let key_border = Color32::from_rgb(60, 68, 88);
-    let key_text_color = Color32::from_rgb(210, 218, 235);
+    let key_bg = Color32::from_rgb(32, 38, 52);
+    let key_border = Color32::from_rgb(58, 68, 92);
+    let key_text_color = Color32::from_rgb(220, 228, 245);
 
     egui::Frame::none()
         .fill(key_bg)
@@ -104,7 +156,7 @@ fn render_keycap(ui: &mut egui::Ui, text: &str) {
             ui.label(
                 egui::RichText::new(text)
                     .color(key_text_color)
-                    .size(11.0)
+                    .size(10.5)
                     .strong(),
             );
         });
@@ -147,6 +199,8 @@ pub struct JLauncherApp {
     calculator: Calculator,
     matcher: SkimMatcherV2,
     results: Vec<LauncherItem>,
+    icon_index: Arc<IconIndex>,
+    icon_textures: HashMap<String, Option<egui::TextureHandle>>,
 
     // Services
     hotkey_service: HotkeyService,
@@ -217,6 +271,9 @@ impl JLauncherApp {
             updater.check_in_background();
         }
 
+        let icon_index = Arc::new(IconIndex::new());
+        let icon_textures = HashMap::new();
+
         let mut app = Self {
             config,
             query: String::new(),
@@ -226,6 +283,8 @@ impl JLauncherApp {
             calculator,
             matcher,
             results: Vec::new(),
+            icon_index,
+            icon_textures,
             hotkey_service,
             _tray_service: tray_service,
             _ipc_rx: ipc_rx,
@@ -262,6 +321,31 @@ impl JLauncherApp {
         }
     }
 
+    pub fn get_or_load_icon(
+        &mut self,
+        ctx: &egui::Context,
+        icon_name_or_path: &str,
+    ) -> Option<egui::TextureHandle> {
+        let trimmed = icon_name_or_path.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        if !self.icon_textures.contains_key(trimmed) {
+            let texture = self
+                .icon_index
+                .find_icon_path(trimmed)
+                .and_then(|path| load_icon_texture(ctx, trimmed, &path));
+            self.icon_textures
+                .insert(trimmed.to_string(), texture);
+        }
+
+        self.icon_textures
+            .get(trimmed)
+            .and_then(|opt| opt.as_ref())
+            .cloned()
+    }
+
     pub fn hide_window(&mut self, _ctx: &egui::Context) {
         info!("JLauncherApp::hide_window [START]");
         crate::coordinator::hide_window();
@@ -278,7 +362,12 @@ impl JLauncherApp {
         info!("JLauncherApp::show_window [START]");
         crate::coordinator::show_window(self.show_settings);
         #[cfg(not(target_os = "windows"))]
-        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        {
+            let (screen_w, screen_h) = crate::coordinator::get_screen_size();
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(screen_w, screen_h)));
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(0.0, 0.0)));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        }
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         self.is_visible = true;
         self.last_revision = crate::coordinator::get_revision();
@@ -423,7 +512,7 @@ impl JLauncherApp {
 
 impl eframe::App for JLauncherApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        Color32::from_rgb(26, 29, 36).to_normalized_gamma_f32()
+        [0.0, 0.0, 0.0, 0.0]
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -472,7 +561,12 @@ impl eframe::App for JLauncherApp {
 
             if self.is_visible {
                 #[cfg(not(target_os = "windows"))]
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                {
+                    let (screen_w, screen_h) = crate::coordinator::get_screen_size();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(screen_w, screen_h)));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(0.0, 0.0)));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                }
                 ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
 
                 #[cfg(target_os = "windows")]
@@ -516,6 +610,27 @@ impl eframe::App for JLauncherApp {
 
         // Only request periodic repaint when visible (for UI animations)
         ctx.request_repaint_after(std::time::Duration::from_millis(50));
+
+        let screen_rect = ctx.screen_rect();
+        let card_w = 650.0_f32.min(screen_rect.width() - 32.0);
+        let card_h = 470.0_f32.min(screen_rect.height() - 32.0);
+        let card_x = screen_rect.left() + (screen_rect.width() - card_w) / 2.0;
+        let card_y = (screen_rect.top() + (screen_rect.height() - card_h) / 3.2).max(24.0);
+        let card_rect = egui::Rect::from_min_size(
+            egui::pos2(card_x, card_y),
+            egui::vec2(card_w, card_h),
+        );
+
+        // Click outside the modal card dismisses the launcher
+        if ctx.input(|i| i.pointer.any_pressed()) {
+            if let Some(pos) = ctx.input(|i| i.pointer.interact_pos()) {
+                if !card_rect.contains(pos) {
+                    info!("Clicked outside launcher modal card at {:?} -> hiding", pos);
+                    self.hide_window(ctx);
+                    return;
+                }
+            }
+        }
 
         // Hide window when focus is lost (only if the window previously gained focus)
         let is_focused = is_window_focused(ctx);
@@ -585,17 +700,29 @@ impl eframe::App for JLauncherApp {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::none()
-                    .fill(Color32::from_rgb(26, 29, 36))
-                    .stroke(Stroke::new(1.2_f32, Color32::from_rgb(55, 62, 78)))
-                    .rounding(Rounding::same(12.0))
-                    .inner_margin(egui::Margin::same(14.0)),
+                    .fill(Color32::from_rgba_unmultiplied(0, 0, 0, 160)),
             )
             .show(ctx, |ui| {
-                if self.show_settings {
-                    self.render_settings(ui, ctx);
-                } else {
-                    self.render_launcher(ui, ctx);
-                }
+                ui.allocate_new_ui(egui::UiBuilder::new().max_rect(card_rect), |ui| {
+                    egui::Frame::none()
+                        .fill(Color32::from_rgba_unmultiplied(20, 24, 34, 252))
+                        .stroke(Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(255, 255, 255, 25)))
+                        .rounding(Rounding::same(14.0))
+                        .shadow(egui::epaint::Shadow {
+                            offset: egui::vec2(0.0, 10.0),
+                            blur: 24.0,
+                            spread: 0.0,
+                            color: Color32::from_rgba_unmultiplied(0, 0, 0, 180),
+                        })
+                        .inner_margin(egui::Margin::symmetric(16.0, 14.0))
+                        .show(ui, |ui| {
+                            if self.show_settings {
+                                self.render_settings(ui, ctx);
+                            } else {
+                                self.render_launcher(ui, ctx);
+                            }
+                        });
+                });
             });
     }
 }
@@ -604,15 +731,19 @@ impl JLauncherApp {
     fn render_launcher(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         // Search Input Bar
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("🔍").size(20.0));
+            ui.label(
+                egui::RichText::new("🔍")
+                    .size(17.0)
+                    .color(Color32::from_rgb(148, 163, 184)),
+            );
             ui.add_space(4.0);
 
             let text_edit = egui::TextEdit::singleline(&mut self.query)
                 .hint_text("Type an app name, math expression (=2+2), or command...")
-                .font(egui::FontId::proportional(18.0))
+                .font(egui::FontId::proportional(16.0))
                 .text_color(Color32::WHITE)
                 .frame(false)
-                .desired_width(ui.available_width() - 70.0);
+                .desired_width(ui.available_width() - 40.0);
 
             let response = ui.add(text_edit);
             if self.should_focus_search || !response.has_focus() {
@@ -628,9 +759,19 @@ impl JLauncherApp {
                 self.update_search();
             }
 
-            // Settings button
+            // Settings button on far right
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(egui::RichText::new("⚙").size(16.0)).clicked() {
+                if ui
+                    .add(
+                        egui::Button::new(
+                            egui::RichText::new("⚙")
+                                .size(17.0)
+                                .color(Color32::from_rgb(148, 163, 184)),
+                        )
+                        .frame(false),
+                    )
+                    .clicked()
+                {
                     self.show_settings = true;
                     crate::coordinator::set_show_settings(true);
                 }
@@ -643,11 +784,11 @@ impl JLauncherApp {
 
         // Results List
         egui::ScrollArea::vertical()
-            .max_height(320.0)
+            .max_height(330.0)
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 if self.results.is_empty() {
-                    ui.add_space(20.0);
+                    ui.add_space(30.0);
                     ui.vertical_centered(|ui| {
                         ui.label(
                             egui::RichText::new("No matching applications or commands")
@@ -655,14 +796,16 @@ impl JLauncherApp {
                                 .size(14.0),
                         );
                     });
+                    ui.add_space(30.0);
                 } else {
                     let mouse_moved = ctx.input(|i| i.pointer.delta().length_sq() > 1.0);
                     let mut clicked_index = None;
                     let mut hovered_index = None;
 
-                    for (index, item) in self.results.iter().enumerate() {
+                    let items = self.results.clone();
+                    for (index, item) in items.iter().enumerate() {
                         let is_selected = index == self.selected_index;
-                        let row_response = self.render_result_row(ui, item, is_selected);
+                        let row_response = self.render_result_row(ui, ctx, item, is_selected);
 
                         if is_selected && self.scroll_to_selected {
                             row_response.scroll_to_me(Some(egui::Align::Center));
@@ -712,7 +855,7 @@ impl JLauncherApp {
     }
 
     fn render_hotkey_hints(&mut self, ui: &mut egui::Ui) {
-        let hint_color = Color32::from_rgb(140, 148, 165);
+        let hint_color = Color32::from_rgb(148, 163, 184);
 
         render_keycap(ui, "↑");
         ui.add_space(2.0);
@@ -771,85 +914,156 @@ impl JLauncherApp {
     }
 
     fn render_result_row(
-        &self,
+        &mut self,
         ui: &mut egui::Ui,
+        ctx: &egui::Context,
         item: &LauncherItem,
         is_selected: bool,
     ) -> egui::Response {
-        let bg = if is_selected {
-            Color32::from_rgb(42, 60, 96)
+        let (bg, stroke) = if is_selected {
+            (
+                Color32::from_rgba_unmultiplied(26, 54, 102, 240),
+                Stroke::new(1.5_f32, Color32::from_rgb(56, 189, 248)), // Glowing cyan/sky-blue border
+            )
         } else {
-            Color32::TRANSPARENT
-        };
-
-        let stroke = if is_selected {
-            Stroke::new(1.0_f32, Color32::from_rgb(66, 120, 220))
-        } else {
-            Stroke::NONE
+            (Color32::TRANSPARENT, Stroke::NONE)
         };
 
         let frame_resp = egui::Frame::none()
             .fill(bg)
             .stroke(stroke)
-            .rounding(Rounding::same(8.0))
-            .inner_margin(egui::Margin::symmetric(10.0, 6.0))
+            .rounding(Rounding::same(10.0))
+            .inner_margin(egui::Margin::symmetric(10.0, 7.0))
             .show(ui, |ui| {
                 ui.horizontal(|ui| match item {
                     LauncherItem::Calculator(calc) => {
-                        ui.label(egui::RichText::new("🧮").size(18.0));
-                        ui.add_space(6.0);
+                        let size = egui::vec2(36.0, 36.0);
+                        let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                        ui.painter().rect_filled(
+                            rect,
+                            Rounding::same(8.0),
+                            Color32::from_rgb(16, 185, 129),
+                        );
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "🧮",
+                            egui::FontId::proportional(18.0),
+                            Color32::WHITE,
+                        );
+
+                        ui.add_space(8.0);
                         ui.vertical(|ui| {
                             ui.label(
                                 egui::RichText::new(&calc.formatted_result)
                                     .color(Color32::from_rgb(52, 211, 153))
                                     .strong()
-                                    .size(16.0),
+                                    .size(15.0),
                             );
                             ui.label(
                                 egui::RichText::new(format!(
-                                    "Calculator: {} (Enter to copy)",
+                                    "= {} (Enter to copy)",
                                     calc.expression
                                 ))
-                                .color(Color32::from_rgb(160, 168, 185))
+                                .color(Color32::from_rgb(148, 163, 184))
                                 .size(12.0),
+                            );
+                            ui.label(
+                                egui::RichText::new("calculator")
+                                    .color(Color32::from_rgb(100, 116, 139))
+                                    .size(10.5),
                             );
                         });
                     }
                     LauncherItem::System(action) => {
-                        ui.label(egui::RichText::new(action.icon).size(18.0));
-                        ui.add_space(6.0);
+                        let size = egui::vec2(36.0, 36.0);
+                        let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                        let badge_color = match action.id {
+                            "shutdown" => Color32::from_rgb(239, 68, 68),
+                            "restart" => Color32::from_rgb(249, 115, 22),
+                            "lock" => Color32::from_rgb(139, 92, 246),
+                            "logout" => Color32::from_rgb(234, 179, 8),
+                            "suspend" | "sleep" => Color32::from_rgb(6, 182, 212),
+                            _ => Color32::from_rgb(100, 116, 139),
+                        };
+                        ui.painter().rect_filled(rect, Rounding::same(8.0), badge_color);
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            action.icon,
+                            egui::FontId::proportional(18.0),
+                            Color32::WHITE,
+                        );
+
+                        ui.add_space(8.0);
                         ui.vertical(|ui| {
                             ui.label(
                                 egui::RichText::new(action.title)
-                                    .color(Color32::from_rgb(248, 113, 113))
+                                    .color(Color32::WHITE)
                                     .strong()
                                     .size(15.0),
                             );
                             ui.label(
                                 egui::RichText::new(action.description)
-                                    .color(Color32::from_rgb(160, 168, 185))
+                                    .color(Color32::from_rgb(148, 163, 184))
                                     .size(12.0),
+                            );
+                            ui.label(
+                                egui::RichText::new("system command")
+                                    .color(Color32::from_rgb(100, 116, 139))
+                                    .size(10.5),
                             );
                         });
                     }
                     LauncherItem::App(app) => {
-                        let icon = app.icon.as_deref().unwrap_or("🚀");
-                        ui.label(egui::RichText::new(icon).size(18.0));
-                        ui.add_space(6.0);
+                        let icon_str = app.icon.as_deref().unwrap_or("");
+                        let tex_handle = self.get_or_load_icon(ctx, icon_str);
+
+                        let fallback_char = app
+                            .name
+                            .chars()
+                            .next()
+                            .map(|c| c.to_uppercase().to_string())
+                            .unwrap_or_else(|| "🚀".into());
+                        let fallback_color = get_badge_color(&app.name);
+
+                        render_icon_or_badge(ui, tex_handle.as_ref(), &fallback_char, fallback_color);
+
+                        ui.add_space(8.0);
                         ui.vertical(|ui| {
+                            // Line 1: App Name
                             ui.label(
                                 egui::RichText::new(&app.name)
                                     .color(Color32::WHITE)
                                     .strong()
                                     .size(15.0),
                             );
+
+                            // Line 2: Description (if not empty)
                             if !app.description.is_empty() {
                                 ui.label(
                                     egui::RichText::new(&app.description)
-                                        .color(Color32::from_rgb(150, 158, 175))
+                                        .color(Color32::from_rgb(148, 163, 184))
                                         .size(12.0),
                                 );
                             }
+
+                            // Line 3: Desktop ID / icon / category identifier
+                            let id_display = app
+                                .icon
+                                .as_deref()
+                                .filter(|s| !s.is_empty() && !s.contains('/'))
+                                .unwrap_or_else(|| {
+                                    app.id
+                                        .strip_suffix(".desktop")
+                                        .unwrap_or(&app.id)
+                                });
+
+                            ui.label(
+                                egui::RichText::new(id_display)
+                                        .color(Color32::from_rgb(100, 116, 139))
+                                        .size(10.5),
+                            );
                         });
                     }
                 });

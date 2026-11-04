@@ -1,6 +1,6 @@
 [package]
 name = "jlauncher"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 authors = ["JLauncher Contributors"]
 description = "Fast, lightweight keyboard launcher for Linux (X11 & Wayland) and Windows"
@@ -27,6 +27,7 @@ semver = "1.0"
 [target.'cfg(not(windows))'.dependencies]
 tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
 openssl = { version = "0.10", features = ["vendored"] }
+x11rb = "0.13"
 
 [target.'cfg(windows)'.dependencies]
 tray-icon = "0.26"

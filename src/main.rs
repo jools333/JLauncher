@@ -318,15 +318,18 @@ fn main() -> eframe::Result<()> {
 
     info!("Starting JLauncher...");
 
+    let (screen_w, screen_h) = coordinator::get_screen_size();
+    info!("Screen dimensions for overlay: {}x{}", screen_w, screen_h);
+
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title("JLauncher")
             .with_decorations(false)
             .with_transparent(true)
             .with_always_on_top()
-            .with_inner_size([650.0, 440.0])
-            .with_min_inner_size([500.0, 300.0])
-            .with_resizable(false)
+            .with_position([0.0, 0.0])
+            .with_inner_size([screen_w, screen_h])
+            .with_resizable(true)
             .with_visible(!start_hidden)
             .with_active(true),
         ..Default::default()

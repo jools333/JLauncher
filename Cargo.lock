@@ -1991,7 +1991,7 @@ dependencies = [
 
 [[package]]
 name = "jlauncher"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "arboard",
  "auto-launch",
@@ -2013,6 +2013,7 @@ dependencies = [
  "tray-icon",
  "ureq",
  "windows-sys 0.59.0",
+ "x11rb",
 ]
 
 [[package]]

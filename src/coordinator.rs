@@ -169,6 +169,37 @@ pub fn get_revision() -> u64 {
     REVISION.load(Ordering::SeqCst)
 }
 
+pub fn get_screen_size() -> (f32, f32) {
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Ok((conn, screen_num)) = x11rb::connect(None) {
+            use x11rb::connection::Connection;
+            let setup = conn.setup();
+            if let Some(screen) = setup.roots.get(screen_num) {
+                let w = screen.width_in_pixels as f32;
+                let h = screen.height_in_pixels as f32;
+                if w > 0.0 && h > 0.0 {
+                    return (w, h);
+                }
+            }
+        }
+        (1920.0, 1080.0)
+    }
+    #[cfg(target_os = "windows")]
+    {
+        unsafe {
+            use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+            let w = GetSystemMetrics(SM_CXSCREEN) as f32;
+            let h = GetSystemMetrics(SM_CYSCREEN) as f32;
+            if w > 0.0 && h > 0.0 {
+                (w, h)
+            } else {
+                (1920.0, 1080.0)
+            }
+        }
+    }
+}
+
 pub fn show_window(with_settings: bool) {
     log::info!("Coordinator: show_window(with_settings={})", with_settings);
     IS_VISIBLE.store(true, Ordering::SeqCst);
@@ -186,21 +217,17 @@ pub fn show_window(with_settings: bool) {
                 use windows_sys::Win32::UI::Input::KeyboardAndMouse::SetFocus;
                 use windows_sys::Win32::UI::WindowsAndMessaging::{
                     AllowSetForegroundWindow, BringWindowToTop, GetForegroundWindow,
-                    GetSystemMetrics, GetWindowThreadProcessId, SetForegroundWindow, SetWindowPos,
-                    ShowWindow, HWND_TOPMOST, SM_CXSCREEN, SM_CYSCREEN, SWP_SHOWWINDOW, SW_RESTORE,
-                    SW_SHOW,
+                    GetWindowThreadProcessId, SetForegroundWindow, SetWindowPos,
+                    ShowWindow, HWND_TOPMOST, SWP_SHOWWINDOW, SW_RESTORE, SW_SHOW,
                 };
                 let h = hwnd as windows_sys::Win32::Foundation::HWND;
                 AllowSetForegroundWindow(GetCurrentProcessId());
 
-                let screen_w = GetSystemMetrics(SM_CXSCREEN);
-                let screen_h = GetSystemMetrics(SM_CYSCREEN);
-                let x = ((screen_w - 650) / 2).max(0);
-                let y = (((screen_h - 440) as f32 / 3.5) as i32).max(0);
+                let (screen_w, screen_h) = get_screen_size();
 
                 ShowWindow(h, SW_RESTORE);
                 ShowWindow(h, SW_SHOW);
-                SetWindowPos(h, HWND_TOPMOST, x, y, 650, 440, SWP_SHOWWINDOW);
+                SetWindowPos(h, HWND_TOPMOST, 0, 0, screen_w as i32, screen_h as i32, SWP_SHOWWINDOW);
 
                 let fg_hwnd = GetForegroundWindow();
                 let current_thread = GetCurrentThreadId();
