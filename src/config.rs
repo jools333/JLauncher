@@ -19,6 +19,8 @@ pub struct Config {
     pub enable_system_commands: bool,
     #[serde(default = "default_true")]
     pub auto_check_updates: bool,
+    #[serde(default = "default_true")]
+    pub switch_to_english_on_open: bool,
 }
 
 impl Default for Config {
@@ -32,6 +34,7 @@ impl Default for Config {
             enable_calculator: true,
             enable_system_commands: true,
             auto_check_updates: true,
+            switch_to_english_on_open: true,
         }
     }
 }
@@ -94,6 +97,7 @@ mod tests {
         assert!(default_config.enable_calculator);
         assert!(default_config.enable_system_commands);
         assert!(default_config.auto_check_updates);
+        assert!(default_config.switch_to_english_on_open);
 
         let json = serde_json::to_string(&default_config).unwrap();
         let loaded: Config = serde_json::from_str(&json).unwrap();

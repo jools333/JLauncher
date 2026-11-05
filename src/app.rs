@@ -307,6 +307,9 @@ impl JLauncherApp {
 
         if !start_hidden {
             cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            if app.config.switch_to_english_on_open {
+                crate::layout::ensure_english_layout();
+            }
         }
 
         app.update_search();
@@ -376,6 +379,9 @@ impl JLauncherApp {
 
         if self.config.clear_on_hide && !self.is_calculator_query() {
             self.query.clear();
+        }
+        if self.config.switch_to_english_on_open {
+            crate::layout::ensure_english_layout();
         }
         self.selected_index = 0;
         self.scroll_to_selected = true;
@@ -588,6 +594,9 @@ impl eframe::App for JLauncherApp {
 
                 if self.config.clear_on_hide && !self.is_calculator_query() {
                     self.query.clear();
+                }
+                if self.config.switch_to_english_on_open {
+                    crate::layout::ensure_english_layout();
                 }
                 self.selected_index = 0;
                 self.scroll_to_selected = true;
@@ -1225,6 +1234,12 @@ impl JLauncherApp {
                 let mut clear_on_hide = self.config.clear_on_hide;
                 if ui.checkbox(&mut clear_on_hide, "Clear search query on hide / Очищать поле при скрытии").changed() {
                     self.config.clear_on_hide = clear_on_hide;
+                    let _ = self.config.save();
+                }
+
+                let mut switch_en = self.config.switch_to_english_on_open;
+                if ui.checkbox(&mut switch_en, "Switch to English on open / Английская раскладка при открытии").changed() {
+                    self.config.switch_to_english_on_open = switch_en;
                     let _ = self.config.save();
                 }
 

@@ -7,6 +7,7 @@ mod config;
 mod coordinator;
 mod hotkey;
 mod ipc;
+mod layout;
 mod system;
 mod tray;
 mod updater;
