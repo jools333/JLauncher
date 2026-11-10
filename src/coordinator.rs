@@ -31,7 +31,7 @@ pub fn set_main_hwnd(hwnd: isize) {
         if old != hwnd {
             log::info!("Coordinator: main window HWND registered as 0x{:x}", hwnd);
             #[cfg(target_os = "windows")]
-            apply_rounded_corners(hwnd);
+            setup_windows_transparency(hwnd);
         }
     }
 }
@@ -42,47 +42,60 @@ pub fn get_main_hwnd() -> isize {
 }
 
 #[cfg(target_os = "windows")]
-pub fn apply_rounded_corners(hwnd: isize) {
+pub fn setup_windows_transparency(hwnd: isize) {
     if hwnd == 0 {
         return;
     }
     unsafe {
-        use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, SetWindowRgn};
-        use windows_sys::Win32::UI::WindowsAndMessaging::GetWindowRect;
-
         let h = hwnd as windows_sys::Win32::Foundation::HWND;
-        let mut rect = std::mem::zeroed();
-        if GetWindowRect(h, &mut rect) != 0 {
-            let width = rect.right - rect.left;
-            let height = rect.bottom - rect.top;
-            if width > 0 && height > 0 {
-                let scale = (width as f32 / 650.0).max(1.0);
-                let radius = (12.0 * scale).round() as i32;
-                let diameter = radius * 2;
-                let hrgn = CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter, diameter);
-                if !hrgn.is_null() {
-                    SetWindowRgn(h, hrgn, 1);
-                }
-            }
-        }
 
-        // Try Windows 11 DWM rounded corners if available
+        // Clear any GDI clipping region so DWM composition remains enabled.
+        // A GDI window region (SetWindowRgn) forces opaque rendering and turns alpha channels solid black.
+        use windows_sys::Win32::Graphics::Gdi::SetWindowRgn;
+        SetWindowRgn(h, std::ptr::null_mut(), 1);
+
         use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
         let dwmapi = LoadLibraryA(b"dwmapi.dll\0".as_ptr());
         if !dwmapi.is_null() {
-            let func = GetProcAddress(dwmapi, b"DwmSetWindowAttribute\0".as_ptr());
-            if let Some(dwm_set_attr) = func {
+            // Extend the DWM glass frame across the entire client area (-1 margins).
+            // This instructs DWM to blend the window's alpha channel across the entire screen.
+            let extend_func = GetProcAddress(dwmapi, b"DwmExtendFrameIntoClientArea\0".as_ptr());
+            if let Some(extend_fn) = extend_func {
+                #[repr(C)]
+                struct Margins {
+                    cx_left: i32,
+                    cx_right: i32,
+                    cy_top: i32,
+                    cy_bottom: i32,
+                }
+                type DwmExtendFn = unsafe extern "system" fn(
+                    windows_sys::Win32::Foundation::HWND,
+                    *const Margins,
+                ) -> i32;
+                let extend: DwmExtendFn = std::mem::transmute(extend_fn);
+                let margins = Margins {
+                    cx_left: -1,
+                    cx_right: -1,
+                    cy_top: -1,
+                    cy_bottom: -1,
+                };
+                let _ = extend(h, &margins);
+            }
+
+            // Ensure Windows 11 does not apply default window borders or rounding to the fullscreen overlay
+            let attr_func = GetProcAddress(dwmapi, b"DwmSetWindowAttribute\0".as_ptr());
+            if let Some(attr_fn) = attr_func {
                 type DwmSetAttrFn = unsafe extern "system" fn(
                     windows_sys::Win32::Foundation::HWND,
                     u32,
                     *const std::ffi::c_void,
                     u32,
                 ) -> i32;
-                let dwm_set_attr: DwmSetAttrFn = std::mem::transmute(dwm_set_attr);
+                let set_attr: DwmSetAttrFn = std::mem::transmute(attr_fn);
                 const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
-                const DWMWCP_ROUND: u32 = 2;
-                let pref: u32 = DWMWCP_ROUND;
-                let _ = dwm_set_attr(
+                const DWMWCP_DONOTROUND: u32 = 1;
+                let pref: u32 = DWMWCP_DONOTROUND;
+                let _ = set_attr(
                     h,
                     DWMWA_WINDOW_CORNER_PREFERENCE,
                     &pref as *const u32 as *const std::ffi::c_void,
@@ -256,7 +269,7 @@ pub fn show_window(with_settings: bool) {
                     SetFocus(h);
                 }
             }
-            apply_rounded_corners(hwnd);
+            setup_windows_transparency(hwnd);
         }
     }
 

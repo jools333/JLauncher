@@ -318,10 +318,7 @@ impl JLauncherApp {
 
     #[cfg(target_os = "windows")]
     fn find_and_register_main_hwnd() {
-        let hwnd = crate::coordinator::ensure_main_hwnd();
-        if hwnd != 0 {
-            crate::coordinator::apply_rounded_corners(hwnd);
-        }
+        crate::coordinator::ensure_main_hwnd();
     }
 
     pub fn get_or_load_icon(
@@ -474,8 +471,14 @@ impl JLauncherApp {
             }
             LauncherItem::App(app) => {
                 info!("Launching application: {}", app.name);
-                if let Err(e) = AppIndex::launch(app) {
-                    self.show_toast(format!("Failed to launch: {}", e));
+                match AppIndex::launch(app) {
+                    Ok(_) => {
+                        self.app_index.record_launch(app);
+                        self.update_search();
+                    }
+                    Err(e) => {
+                        self.show_toast(format!("Failed to launch: {}", e));
+                    }
                 }
                 self.hide_window(ctx);
             }
@@ -1074,7 +1077,7 @@ impl JLauncherApp {
                                 );
                             }
 
-                            // Line 3: Desktop ID / icon / category identifier
+                            // Line 3: Desktop ID / icon / category identifier & launch count
                             let id_display = app
                                 .icon
                                 .as_deref()
@@ -1085,8 +1088,16 @@ impl JLauncherApp {
                                         .unwrap_or(&app.id)
                                 });
 
+                            let count = self.app_index.get_launch_count(app);
+                            let sub_text = if count > 0 {
+                                let runs_word = if count == 1 { "run" } else { "runs" };
+                                format!("{} • {} {}", id_display, count, runs_word)
+                            } else {
+                                id_display.to_string()
+                            };
+
                             ui.label(
-                                egui::RichText::new(id_display)
+                                egui::RichText::new(sub_text)
                                         .color(Color32::from_rgb(100, 116, 139))
                                         .size(10.5),
                             );
@@ -1259,11 +1270,19 @@ impl JLauncherApp {
                 ui.add_space(14.0);
 
                 // Rescan apps button
-                if ui.button("🔄 Rescan Applications Now / Обновить список программ").clicked() {
-                    self.app_index.refresh();
-                    self.update_search();
-                    self.show_toast("Applications rescanned!".into());
-                }
+                ui.horizontal(|ui| {
+                    if ui.button("🔄 Rescan Applications Now / Обновить список программ").clicked() {
+                        self.app_index.refresh();
+                        self.update_search();
+                        self.show_toast("Applications rescanned!".into());
+                    }
+
+                    if ui.button("🗑 Reset Launch History / Сбросить историю запусков").clicked() {
+                        let _ = self.app_index.clear_usage();
+                        self.update_search();
+                        self.show_toast("Launch history reset!".into());
+                    }
+                });
 
                 ui.add_space(14.0);
                 ui.separator();

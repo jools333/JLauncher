@@ -111,16 +111,15 @@ fn camel_to_kebab(s: &str) -> String {
 }
 
 fn index_system_icons() -> HashMap<String, PathBuf> {
-    let mut map = HashMap::new();
-
     #[cfg(target_os = "windows")]
     {
         // On Windows, system apps and desktop shortcuts
-        return map;
+        return HashMap::new();
     }
 
     #[cfg(not(target_os = "windows"))]
     {
+        let mut map = HashMap::new();
         let mut search_dirs = vec![
             PathBuf::from("/usr/share/pixmaps"),
             PathBuf::from("/usr/share/icons/hicolor"),
