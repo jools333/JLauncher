@@ -55,6 +55,18 @@
 
 ---
 
+## 📥 Установка
+
+### Windows
+1. Перейдите в [GitHub Releases](https://github.com/jools333/JLauncher/releases) и скачайте файл инсталлятора **`JLauncher_<version>_x64-setup.exe`** (или `jlauncher-setup.exe`).
+2. Запустите инсталлятор. Он автоматически установит программу, создаст ярлыки в меню «Пуск» и на рабочем столе, а также добавит запись в системное меню Windows «Установка и удаление программ».
+3. При необходимости доступна и портативная standalone-версия (`jlauncher-windows-x86_64.exe`).
+
+### Linux
+Скачайте готовый архив `jlauncher-v<version>-linux-x86_64.tar.gz` или бинарный файл со страницы [Releases](https://github.com/jools333/JLauncher/releases) и скопируйте исполняемый файл в `/usr/local/bin` или `~/.local/bin`.
+
+---
+
 ## 🛠 Сборка и запуск
 
 ### Требования

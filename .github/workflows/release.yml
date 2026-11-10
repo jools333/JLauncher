@@ -35,7 +35,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
           name: "JLauncher ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}"
-          body: 'Automated release of JLauncher for Windows and Linux.'
+          body: 'Automated release of JLauncher for Windows (.exe installer / standalone) and Linux (.tar.gz / binary).'
           draft: false
           prerelease: false
 
@@ -114,6 +114,18 @@ jobs:
           echo "ASSET_ARCHIVE=$ARCHIVE_NAME" >> $GITHUB_ENV
           echo "ASSET_BIN=./jlauncher-linux-x86_64" >> $GITHUB_ENV
 
+      - name: Build Windows Installer (NSIS)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tag = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}' } else { '${{ inputs.tag }}' }
+          $cleanVersion = $tag.TrimStart('v')
+          .\scripts\build-installer.ps1 -Version $cleanVersion -BinaryPath "target/${{ matrix.target }}/release/${{ matrix.binary }}"
+          $setupExe = "target/installer/JLauncher_${cleanVersion}_x64-setup.exe"
+          $genericSetup = "target/installer/jlauncher-setup.exe"
+          Add-Content -Path $env:GITHUB_ENV -Value "ASSET_INSTALLER=$setupExe"
+          Add-Content -Path $env:GITHUB_ENV -Value "ASSET_INSTALLER_GENERIC=$genericSetup"
+
       - name: Package Release Assets (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -135,3 +147,5 @@ jobs:
           files: |
             ${{ env.ASSET_ARCHIVE }}
             ${{ env.ASSET_BIN }}
+            ${{ env.ASSET_INSTALLER }}
+            ${{ env.ASSET_INSTALLER_GENERIC }}
