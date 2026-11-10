@@ -1,6 +1,6 @@
 [package]
 name = "jlauncher"
-version = "0.2.9"
+version = "0.2.10"
 edition = "2021"
 authors = ["JLauncher Contributors"]
 description = "Fast, lightweight keyboard launcher for Linux (X11 & Wayland) and Windows"
@@ -31,6 +31,8 @@ x11rb = "0.13"
 
 [target.'cfg(windows)'.dependencies]
 tray-icon = "0.26"
+egui-wgpu = "0.29"
+wgpu = { version = "22.1", features = ["dx12"] }
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 version = "0.59"

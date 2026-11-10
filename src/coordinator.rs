@@ -245,6 +245,7 @@ pub fn show_window(with_settings: bool) {
 
     let lock = EGUI_CTX.lock().unwrap();
     if let Some(ctx) = lock.as_ref() {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         ctx.request_repaint();
     }
@@ -271,6 +272,7 @@ pub fn hide_window() {
 
     let lock = EGUI_CTX.lock().unwrap();
     if let Some(ctx) = lock.as_ref() {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         ctx.request_repaint();
     }
     log::info!("Coordinator: hide_window [DONE]");

@@ -346,11 +346,10 @@ impl JLauncherApp {
             .cloned()
     }
 
-    pub fn hide_window(&mut self, _ctx: &egui::Context) {
+    pub fn hide_window(&mut self, ctx: &egui::Context) {
         info!("JLauncherApp::hide_window [START]");
         crate::coordinator::hide_window();
-        #[cfg(not(target_os = "windows"))]
-        _ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         self.is_visible = false;
         self.last_revision = crate::coordinator::get_revision();
         self.was_focused = false;
@@ -366,8 +365,8 @@ impl JLauncherApp {
             let (screen_w, screen_h) = crate::coordinator::get_screen_size();
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(screen_w, screen_h)));
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(0.0, 0.0)));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         }
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         self.is_visible = true;
         self.last_revision = crate::coordinator::get_revision();
@@ -574,8 +573,8 @@ impl eframe::App for JLauncherApp {
                     let (screen_w, screen_h) = crate::coordinator::get_screen_size();
                     ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(screen_w, screen_h)));
                     ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(0.0, 0.0)));
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
 
                 #[cfg(target_os = "windows")]
@@ -609,7 +608,6 @@ impl eframe::App for JLauncherApp {
                 self.was_focused = false;
                 self.visible_since = Some(std::time::Instant::now());
             } else {
-                #[cfg(not(target_os = "windows"))]
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                 self.was_focused = false;
                 self.visible_since = None;

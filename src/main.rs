@@ -251,6 +251,17 @@ fn main() -> eframe::Result<()> {
         }
     }
 
+    #[cfg(target_os = "windows")]
+    {
+        // Force DirectX 12 backend for wgpu on Windows.
+        // Vulkan swapchains on Windows often do not support transparent CompositeAlphaMode
+        // (e.g. on Intel UHD Graphics and many laptop GPUs), resulting in an opaque black overlay.
+        // DXGI on DX12 natively supports per-pixel premultiplied alpha transparency.
+        if std::env::var("WGPU_BACKEND").is_err() {
+            std::env::set_var("WGPU_BACKEND", "dx12");
+        }
+    }
+
     init_logger();
 
     let args: Vec<String> = env::args().collect();
@@ -325,6 +336,11 @@ fn main() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions {
         #[cfg(target_os = "windows")]
         renderer: eframe::Renderer::Wgpu,
+        #[cfg(target_os = "windows")]
+        wgpu_options: egui_wgpu::WgpuConfiguration {
+            supported_backends: eframe::wgpu::Backends::DX12,
+            ..Default::default()
+        },
         #[cfg(not(target_os = "windows"))]
         renderer: eframe::Renderer::Glow,
         viewport: eframe::egui::ViewportBuilder::default()
