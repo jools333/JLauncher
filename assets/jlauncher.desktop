@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=JLauncher
+Comment=Fast keyboard launcher and calculator
+Exec=jlauncher
+Icon=jlauncher
+Terminal=false
+Type=Application
+Categories=Utility;Application;
+Keywords=launcher;search;calculator;run;
+StartupNotify=true

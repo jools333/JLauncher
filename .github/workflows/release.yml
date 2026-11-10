@@ -35,7 +35,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
           name: "JLauncher ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}"
-          body: 'Automated release of JLauncher for Windows (.exe installer / standalone) and Linux (.tar.gz / binary).'
+          body: 'Automated release of JLauncher for Windows (.exe installer / standalone) and Linux (.deb package / .tar.gz / binary).'
           draft: false
           prerelease: false
 
@@ -103,6 +103,16 @@ jobs:
       - name: Build Release Binary
         run: cargo build --release --target ${{ matrix.target }} --verbose
 
+      - name: Build Debian Package (.deb)
+        if: runner.os == 'Linux'
+        run: |
+          TAG_NAME="${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}"
+          CLEAN_VER="${TAG_NAME#v}"
+          chmod +x ./scripts/build-deb.sh
+          ./scripts/build-deb.sh "$CLEAN_VER" "target/${{ matrix.target }}/release/${{ matrix.binary }}"
+          echo "ASSET_DEB=./target/installer/jlauncher_${CLEAN_VER}_amd64.deb" >> $GITHUB_ENV
+          echo "ASSET_DEB_GENERIC=./target/installer/jlauncher_amd64.deb" >> $GITHUB_ENV
+
       - name: Package Release Assets (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -149,3 +159,5 @@ jobs:
             ${{ env.ASSET_BIN }}
             ${{ env.ASSET_INSTALLER }}
             ${{ env.ASSET_INSTALLER_GENERIC }}
+            ${{ env.ASSET_DEB }}
+            ${{ env.ASSET_DEB_GENERIC }}

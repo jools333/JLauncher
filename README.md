@@ -63,6 +63,16 @@
 3. При необходимости доступна и портативная standalone-версия (`jlauncher-windows-x86_64.exe`).
 
 ### Linux
+
+#### Установка через deb-пакет (Ubuntu, Debian, Mint, Pop!_OS):
+1. Скачайте **`jlauncher_<version>_amd64.deb`** (или `jlauncher_amd64.deb`) со страницы [Releases](https://github.com/jools333/JLauncher/releases).
+2. Установите пакет командой:
+   ```bash
+   sudo apt install ./jlauncher_*_amd64.deb
+   ```
+   *Пакет автоматически установит бинарник в `/usr/bin/jlauncher`, установит иконки и добавит пункт в меню приложений системы (`jlauncher.desktop`).*
+
+#### Ручная установка / другие дистрибутивы:
 Скачайте готовый архив `jlauncher-v<version>-linux-x86_64.tar.gz` или бинарный файл со страницы [Releases](https://github.com/jools333/JLauncher/releases) и скопируйте исполняемый файл в `/usr/local/bin` или `~/.local/bin`.
 
 ---
