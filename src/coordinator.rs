@@ -49,41 +49,11 @@ pub fn setup_windows_transparency(hwnd: isize) {
     unsafe {
         let h = hwnd as windows_sys::Win32::Foundation::HWND;
 
-        // Clear any GDI clipping region so DWM composition remains enabled.
-        // A GDI window region (SetWindowRgn) forces opaque rendering and turns alpha channels solid black.
-        use windows_sys::Win32::Graphics::Gdi::SetWindowRgn;
-        SetWindowRgn(h, std::ptr::null_mut(), 1);
-
         use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
-        let dwmapi = LoadLibraryA(b"dwmapi.dll\0".as_ptr());
+        let dwmapi = LoadLibraryA(c"dwmapi.dll".as_ptr().cast());
         if !dwmapi.is_null() {
-            // Extend the DWM glass frame across the entire client area (-1 margins).
-            // This instructs DWM to blend the window's alpha channel across the entire screen.
-            let extend_func = GetProcAddress(dwmapi, b"DwmExtendFrameIntoClientArea\0".as_ptr());
-            if let Some(extend_fn) = extend_func {
-                #[repr(C)]
-                struct Margins {
-                    cx_left: i32,
-                    cx_right: i32,
-                    cy_top: i32,
-                    cy_bottom: i32,
-                }
-                type DwmExtendFn = unsafe extern "system" fn(
-                    windows_sys::Win32::Foundation::HWND,
-                    *const Margins,
-                ) -> i32;
-                let extend: DwmExtendFn = std::mem::transmute(extend_fn);
-                let margins = Margins {
-                    cx_left: -1,
-                    cx_right: -1,
-                    cy_top: -1,
-                    cy_bottom: -1,
-                };
-                let _ = extend(h, &margins);
-            }
-
             // Ensure Windows 11 does not apply default window borders or rounding to the fullscreen overlay
-            let attr_func = GetProcAddress(dwmapi, b"DwmSetWindowAttribute\0".as_ptr());
+            let attr_func = GetProcAddress(dwmapi, c"DwmSetWindowAttribute".as_ptr().cast());
             if let Some(attr_fn) = attr_func {
                 type DwmSetAttrFn = unsafe extern "system" fn(
                     windows_sys::Win32::Foundation::HWND,

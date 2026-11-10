@@ -923,12 +923,14 @@ dependencies = [
  "objc2-foundation 0.2.2",
  "parking_lot",
  "percent-encoding",
+ "pollster",
  "raw-window-handle",
  "static_assertions",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
  "web-time",
+ "wgpu",
  "winapi",
  "windows-sys 0.52.0",
  "winit",
@@ -1991,7 +1993,7 @@ dependencies = [
 
 [[package]]
 name = "jlauncher"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "arboard",
  "auto-launch",
@@ -3141,6 +3143,12 @@ dependencies = [
  "rustix 1.1.6",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "pollster"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22686f4785f02a4fcc856d3b3bb19bf6c8160d103f7a99cc258bddd0251dc7f2"
 
 [[package]]
 name = "portable-atomic"
@@ -4393,6 +4401,7 @@ dependencies = [
  "document-features",
  "js-sys",
  "log",
+ "naga",
  "parking_lot",
  "profiling",
  "raw-window-handle",
@@ -4441,6 +4450,7 @@ dependencies = [
  "arrayvec",
  "ash",
  "bitflags 2.13.2",
+ "block",
  "cfg_aliases 0.1.1",
  "core-graphics-types",
  "glow 0.13.1",

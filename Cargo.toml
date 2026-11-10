@@ -1,12 +1,12 @@
 [package]
 name = "jlauncher"
-version = "0.2.7"
+version = "0.2.8"
 edition = "2021"
 authors = ["JLauncher Contributors"]
 description = "Fast, lightweight keyboard launcher for Linux (X11 & Wayland) and Windows"
 
 [dependencies]
-eframe = { version = "0.29", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
+eframe = { version = "0.29", default-features = false, features = ["default_fonts", "glow", "wgpu", "wayland", "x11"] }
 egui = "0.29"
 global-hotkey = "0.9"
 fuzzy-matcher = "0.3"

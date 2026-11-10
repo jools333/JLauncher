@@ -323,6 +323,10 @@ fn main() -> eframe::Result<()> {
     info!("Screen dimensions for overlay: {}x{}", screen_w, screen_h);
 
     let native_options = eframe::NativeOptions {
+        #[cfg(target_os = "windows")]
+        renderer: eframe::Renderer::Wgpu,
+        #[cfg(not(target_os = "windows"))]
+        renderer: eframe::Renderer::Glow,
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title("JLauncher")
             .with_decorations(false)
@@ -330,7 +334,7 @@ fn main() -> eframe::Result<()> {
             .with_always_on_top()
             .with_position([0.0, 0.0])
             .with_inner_size([screen_w, screen_h])
-            .with_resizable(true)
+            .with_resizable(false)
             .with_visible(!start_hidden)
             .with_active(true),
         ..Default::default()
